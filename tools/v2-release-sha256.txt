@@ -1,0 +1,10 @@
+# RODO Journal V2 verified release manifest.
+# Generated after focused feature QA and full regression QA.
+866f797d46337105cff260c30faff069422d0ac041e5dd38a46956d302f79572  index.html
+72238758ca70239dcdb271de56d0fa73142264beffe8e161e32ad9199dc9e06f  js/app.js
+dc82c69dcf0d7721a20a9915d70534d5f0c61ef089f175bba9f2a2390033a94e  js/journal.js
+c61515675296020a3f7206b836f5691dd447982b29a8eb98c80cf6616037b012  css/style.css
+d39466a227c24462862b7ecac4db63bde01d23299a4de1f02df04558052e9c1e  js/store-tools.js
+47559e238649e7051b632ffe7fe7ea3b90ca5589eb27f6785c65cda25f441ec3  assets/images/logo.webp
+cb5c0aa6d1ae79931ee7561c4275496eb31effcd948221570d4b6f95dca5316c  assets/images/favicon.svg
+171661f91dd26ccc22b7f27aa6c38e997fe74d80d1778ffba6a584a685fb47d5  tools/journal-qa.mjs

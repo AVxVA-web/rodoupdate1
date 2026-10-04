@@ -2,7 +2,7 @@ if (typeof window.lucide === 'undefined') {
     window.lucide = { createIcons: function(options) { console.warn('Lucide icons not loaded. Check connection or CDN.'); } };
 }
 
-const CURRENT_STATE_VERSION = 6;
+const CURRENT_STATE_VERSION = 7;
 
 const CATEGORIES = {
     study: { label: 'مذاكرة', color: 'bg-purple-400', colorCode: '#c084fc', bgCheck: 'bg-purple-500', textCheck: 'text-purple-400' },
@@ -196,7 +196,7 @@ const INITIAL_STATE = {
         lastSmartReviewDate: null
     },
     studySubjects: [],
-    activeSession: { isRunning: false, startTime: null, elapsedMs: 0, pendingSave: false },
+    activeSession: { isRunning: false, startTime: null, elapsedMs: 0, pendingSave: false, subjectId: null, goalMs: 0, goalRewardClaimed: false, goalReached: false, goalReachedAt: null },
     streakNeedsRestart: false,
     heatmapData: {},
     store: {
@@ -244,7 +244,7 @@ function clearStopwatchInterval() {
 
 function resetActiveSession() {
     clearStopwatchInterval();
-    state.activeSession = { isRunning: false, startTime: null, elapsedMs: 0, pendingSave: false };
+    state.activeSession = { isRunning: false, startTime: null, elapsedMs: 0, pendingSave: false, subjectId: null, goalMs: 0, goalRewardClaimed: false, goalReached: false, goalReachedAt: null };
 }
 
 function refreshCoreViews() {
@@ -417,7 +417,67 @@ let state = JSON.parse(JSON.stringify(INITIAL_STATE));
 let stateSnapshot = null;
 let pendingRandomEvent = null;
 let stopwatchInterval = null;
+let focusStartArmed = false;
+let focusGoalToastShown = false;
 let currentStoreCategory = 'storefront';
+
+const FOCUS_GOAL_REWARDS = [
+    { minutes: 30, coins: 30, xp: 15 },
+    { minutes: 45, coins: 50, xp: 25 },
+    { minutes: 60, coins: 80, xp: 40 },
+    { minutes: 90, coins: 120, xp: 60 },
+    { minutes: 120, coins: 200, xp: 100 },
+    { minutes: 150, coins: 260, xp: 130 },
+    { minutes: 180, coins: 330, xp: 165 },
+    { minutes: 210, coins: 390, xp: 195 },
+    { minutes: 240, coins: 450, xp: 225 }
+];
+
+function normalizeFocusGoalMinutes(value) {
+    const minutes = Math.floor(Number(value));
+    if (!Number.isFinite(minutes) || minutes <= 0) return 0;
+    return Math.min(720, Math.max(15, Math.round(minutes / 15) * 15));
+}
+
+function getFocusGoalReward(goalMinutes) {
+    const minutes = normalizeFocusGoalMinutes(goalMinutes);
+    if (!minutes) return { coins: 0, xp: 0 };
+    if (minutes <= FOCUS_GOAL_REWARDS[0].minutes) {
+        const first = FOCUS_GOAL_REWARDS[0];
+        return { coins: first.coins, xp: first.xp };
+    }
+    for (let i = 1; i < FOCUS_GOAL_REWARDS.length; i++) {
+        const current = FOCUS_GOAL_REWARDS[i];
+        const previous = FOCUS_GOAL_REWARDS[i - 1];
+        if (minutes <= current.minutes) {
+            const ratio = (minutes - previous.minutes) / (current.minutes - previous.minutes);
+            return {
+                coins: Math.round(previous.coins + (current.coins - previous.coins) * ratio),
+                xp: Math.round(previous.xp + (current.xp - previous.xp) * ratio)
+            };
+        }
+    }
+    const extraHalfHours = Math.floor((minutes - 240) / 30);
+    return { coins: 450 + extraHalfHours * 70, xp: 225 + extraHalfHours * 35 };
+}
+
+function formatFocusGoal(minutes) {
+    const value = normalizeFocusGoalMinutes(minutes);
+    if (!value) return 'بدون هدف';
+    if (value < 60) return `${value} دقيقة`;
+    const hours = Math.floor(value / 60);
+    const mins = value % 60;
+    return mins ? `${hours}س ${mins}د` : `${hours} ساعة`;
+}
+
+function getActiveStopwatchElapsedMs() {
+    if (!state.activeSession) return 0;
+    const base = Math.max(0, Number(state.activeSession.elapsedMs) || 0);
+    return state.activeSession.isRunning && state.activeSession.startTime
+        ? base + Math.max(0, Date.now() - Number(state.activeSession.startTime))
+        : base;
+}
+
 let currentCatalogSubtab = 'all';
 let storeBoostInterval = null;
 let storeTransactionLocked = false;
@@ -467,6 +527,20 @@ function runMigrations(loadedState) {
     if (typeof s.activeSession.isRunning !== 'boolean') s.activeSession.isRunning = false;
     if (typeof s.activeSession.elapsedMs !== 'number' || !Number.isFinite(s.activeSession.elapsedMs) || s.activeSession.elapsedMs < 0) s.activeSession.elapsedMs = 0;
     if (typeof s.activeSession.pendingSave !== 'boolean') s.activeSession.pendingSave = false;
+    if (s.activeSession.subjectId !== null && !Number.isFinite(Number(s.activeSession.subjectId))) s.activeSession.subjectId = null;
+    if (typeof s.activeSession.goalMs !== 'number' || !Number.isFinite(s.activeSession.goalMs) || s.activeSession.goalMs < 0) s.activeSession.goalMs = 0;
+    if (s.activeSession.goalMs > 12 * 60 * 60 * 1000) s.activeSession.goalMs = 12 * 60 * 60 * 1000;
+    if (typeof s.activeSession.goalRewardClaimed !== 'boolean') s.activeSession.goalRewardClaimed = false;
+    if (typeof s.activeSession.goalReached !== 'boolean') s.activeSession.goalReached = false;
+    if (s.activeSession.goalReachedAt !== null && !Number.isFinite(Number(s.activeSession.goalReachedAt))) s.activeSession.goalReachedAt = null;
+    if (s.version < 7) {
+        // Optional stopwatch goals are additive. Existing sessions remain resumable.
+        if (s.activeSession.subjectId !== null && !Number.isFinite(Number(s.activeSession.subjectId))) s.activeSession.subjectId = null;
+        s.activeSession.goalMs = Math.max(0, Number(s.activeSession.goalMs) || 0);
+        s.activeSession.goalRewardClaimed = s.activeSession.goalRewardClaimed === true;
+        s.activeSession.goalReached = s.activeSession.goalReached === true;
+        s.activeSession.goalReachedAt = Number.isFinite(Number(s.activeSession.goalReachedAt)) ? Number(s.activeSession.goalReachedAt) : null;
+    }
     if (typeof s.streakNeedsRestart !== 'boolean') s.streakNeedsRestart = false;
 
     if (s.version < 2) {
@@ -569,6 +643,7 @@ function normalizeStateCollections(targetState) {
         const updatedAt = Number(j.updatedAt);
         j.createdAt = Number.isFinite(createdAt) && createdAt > 0 ? createdAt : Date.now();
         j.updatedAt = Number.isFinite(updatedAt) && updatedAt > 0 ? updatedAt : j.createdAt;
+        j.isPinned = j.isPinned === true;
     });
 
     s.goals = normalizeEntityIds(s.goals.filter(Boolean).map(g => ({ ...g })).filter(g => String(g.text ?? '').trim()));
@@ -2542,70 +2617,96 @@ function updateStopwatchUI(renderIcons = false) {
     const resetBtn = document.getElementById('btn-stopwatch-reset');
     const iconToggle = document.getElementById('icon-stopwatch-toggle');
     const subjectLabel = document.getElementById('stopwatch-subject-display');
-
+    const sessionState = document.getElementById('stopwatch-session-state');
+    const goalPanel = document.getElementById('stopwatch-goal-panel');
+    const goalLabel = document.getElementById('stopwatch-goal-label');
+    const goalStatus = document.getElementById('stopwatch-goal-status');
+    const goalProgress = document.getElementById('stopwatch-goal-progress');
     if (!display) return;
 
-    let totalMs = state.activeSession.elapsedMs;
-    if (state.activeSession.isRunning && state.activeSession.startTime) {
-        totalMs += Date.now() - state.activeSession.startTime;
-    }
-
+    const totalMs = getActiveStopwatchElapsedMs();
     const totalSeconds = Math.floor(totalMs / 1000);
     const h = Math.floor(totalSeconds / 3600).toString().padStart(2, '0');
     const m = Math.floor((totalSeconds % 3600) / 60).toString().padStart(2, '0');
-    const s = (totalSeconds % 60).toString().padStart(2, '0');
+    const sec = (totalSeconds % 60).toString().padStart(2, '0');
+    const formatted = h > 0 ? `${h}:${m}:${sec}` : `${m}:${sec}`;
+    display.innerText = formatted;
 
-    display.innerText = h > 0 ? `${h}:${m}:${s}` : `${m}:${s}`;
-    
+    const subject = state.activeSession?.subjectId != null
+        ? state.studySubjects.find(s => String(s.id) === String(state.activeSession.subjectId))
+        : null;
+    const goalMs = Math.max(0, Number(state.activeSession?.goalMs) || 0);
+    const goalReached = !!state.activeSession?.goalReached || (goalMs > 0 && totalMs >= goalMs);
+
+    if (goalMs > 0 && totalMs >= goalMs && !state.activeSession.goalReached) {
+        state.activeSession.goalReached = true;
+        state.activeSession.goalReachedAt = Date.now();
+        if (!focusGoalToastShown) {
+            focusGoalToastShown = true;
+            showToast(`وصلت لهدفك: ${formatFocusGoal(goalMs / 60000)}. تقدر تكمل براحتك.`, 'success', true);
+        }
+        saveState();
+    }
+
     const zenDisplay = document.getElementById('timer-display-zen');
-    if (zenDisplay) zenDisplay.innerText = display.innerText;
+    if (zenDisplay) zenDisplay.innerText = formatted;
+    const zenSubject = document.getElementById('timer-subject-zen');
+    if (zenSubject) zenSubject.textContent = subject?.name || 'جلسة مفتوحة';
+    const zenState = document.getElementById('timer-state-zen');
+    if (zenState) zenState.textContent = state.activeSession.isRunning ? 'جاري التسجيل' : (totalMs > 0 ? 'متوقف مؤقتًا' : 'جاهز');
+    const zenGoal = document.getElementById('timer-goal-zen');
+    if (zenGoal) zenGoal.textContent = goalMs > 0 ? `الهدف · ${formatFocusGoal(goalMs / 60000)}` : 'بدون هدف';
+    const zenRing = document.getElementById('zen-progress-ring');
+    const goalPct = goalMs > 0 ? Math.min(1, totalMs / goalMs) : 0;
+    if (zenRing) zenRing.style.strokeDashoffset = `${301.59 * (1 - goalPct)}`;
+    const zenProgress = document.getElementById('timer-progress-zen');
+    if (zenProgress) { zenProgress.style.setProperty('--zen-progress', `${Math.round(goalPct * 100)}%`); zenProgress.textContent = goalMs > 0 ? (goalReached ? 'اكتمل الهدف · تقدر تكمل على راحتك' : `${Math.floor(totalMs / 60000)}د من ${formatFocusGoal(goalMs / 60000)} · ${Math.round(goalPct * 100)}%`) : 'جلسة مفتوحة · تقدر تكمل على راحتك'; }
+
+    if (subjectLabel) {
+        subjectLabel.innerText = subject?.name || (totalMs > 0 ? 'جلسة مفتوحة' : 'اختر مادة للبدء');
+        subjectLabel.className = state.activeSession.isRunning
+            ? "text-blue-300 font-bold text-xs bg-blue-500/10 px-4 py-2 min-h-[32px] rounded-full border border-blue-500/20 shadow-inner mt-2 transition-all duration-300"
+            : "text-white/55 font-bold text-xs bg-white/5 px-4 py-2 min-h-[32px] rounded-full border border-white/10 mt-2 transition-all duration-300";
+    }
+    if (sessionState) {
+        sessionState.textContent = state.activeSession.isRunning ? 'جاري التسجيل — الوقت هيُضاف للمادة عند الإنهاء' : (totalMs > 0 ? 'متوقف مؤقتًا — يمكنك الاستكمال أو إنهاء الجلسة' : 'اختار المادة وحدد هدفًا اختياريًا ثم ابدأ');
+    }
+    if (goalPanel) goalPanel.classList.toggle('hidden', goalMs <= 0);
+    if (goalLabel) goalLabel.textContent = goalMs > 0 ? `هدف الجلسة · ${formatFocusGoal(goalMs / 60000)}` : '';
+    if (goalProgress) goalProgress.style.width = `${Math.round(goalPct * 100)}%`;
+    if (goalStatus) goalStatus.textContent = goalMs <= 0 ? 'جلسة مفتوحة' : (goalReached ? 'اكتمل الهدف · ويمكنك الاستمرار' : `${Math.floor(totalMs / 60000)}د من ${formatFocusGoal(goalMs / 60000)}`);
+
+    const goalShell = document.getElementById('stopwatch-goal-shell');
+    if (goalShell) goalShell.dataset.reached = goalReached ? 'true' : 'false';
 
     if (state.activeSession.isRunning) {
         display.classList.add('timer-running');
         if (spinner) spinner.style.opacity = '1';
-        if (spinner) spinner.style.transform = `rotate(${(totalSeconds % 60) * 6}deg)`; 
-        if (pulseBg) pulseBg.classList.replace('opacity-0', 'opacity-100');
-        if (pulseBg) pulseBg.classList.add('animate-pulse');
-        if (ringBg) ringBg.classList.add('scale-105', 'border-orange-500/20');
-        
+        if (spinner) spinner.style.transform = `rotate(${(totalSeconds % 60) * 6}deg)`;
+        if (pulseBg) { pulseBg.classList.replace('opacity-0', 'opacity-100'); pulseBg.classList.add('animate-pulse'); }
+        if (ringBg) ringBg.classList.add('scale-105', 'border-blue-500/20');
         if (finishBtn) finishBtn.classList.remove('opacity-50', 'pointer-events-none', 'scale-95');
         if (resetBtn) resetBtn.classList.remove('opacity-50', 'pointer-events-none', 'scale-95');
-        
         if (renderIcons && toggleBtn && iconToggle) {
-            toggleBtn.className = "w-16 h-16 rounded-full bg-orange-500/20 border border-orange-500/50 text-orange-400 flex justify-center items-center btn-focus-action shadow-[0_0_25px_rgba(249,115,22,0.4)]";
+            toggleBtn.className = "w-16 h-16 rounded-full bg-blue-500/15 border border-blue-400/40 text-blue-200 flex justify-center items-center btn-focus-action shadow-[0_0_25px_rgba(59,130,246,0.25)]";
             iconToggle.setAttribute('data-lucide', 'pause');
             iconToggle.classList.remove('ml-1');
             lucide.createIcons({ root: toggleBtn });
         }
-        if (subjectLabel) {
-            subjectLabel.innerText = "جاري التسجيل...";
-            subjectLabel.className = "text-orange-400 font-bold text-xs bg-orange-500/10 px-4 py-2 min-h-[32px] rounded-full border border-orange-500/20 shadow-inner mt-2 animate-pulse transition-all duration-300";
-        }
     } else {
         display.classList.remove('timer-running');
         if (spinner) spinner.style.opacity = '0';
-        if (pulseBg) pulseBg.classList.replace('opacity-100', 'opacity-0');
-        if (pulseBg) pulseBg.classList.remove('animate-pulse');
-        if (ringBg) ringBg.classList.remove('scale-105', 'border-orange-500/20');
-
+        if (pulseBg) { pulseBg.classList.replace('opacity-100', 'opacity-0'); pulseBg.classList.remove('animate-pulse'); }
+        if (ringBg) ringBg.classList.remove('scale-105', 'border-blue-500/20');
         if (totalMs > 0) {
             if (finishBtn) finishBtn.classList.remove('opacity-50', 'pointer-events-none', 'scale-95');
             if (resetBtn) resetBtn.classList.remove('opacity-50', 'pointer-events-none', 'scale-95');
-            if (subjectLabel) {
-                subjectLabel.innerText = "مؤقت متوقف";
-                subjectLabel.className = "text-white/50 font-bold text-xs bg-white/5 px-4 py-2 min-h-[32px] rounded-full border border-white/10 mt-2 transition-all duration-300";
-            }
         } else {
             if (finishBtn) finishBtn.classList.add('opacity-50', 'pointer-events-none', 'scale-95');
             if (resetBtn) resetBtn.classList.add('opacity-50', 'pointer-events-none', 'scale-95');
-            if (subjectLabel) {
-                subjectLabel.innerText = "جاهز للبدء";
-                subjectLabel.className = "text-blue-400 font-bold text-xs bg-blue-500/10 px-4 py-2 min-h-[32px] rounded-full border border-blue-500/20 shadow-inner mt-2 transition-all duration-300";
-            }
         }
-
         if (renderIcons && toggleBtn && iconToggle) {
-            toggleBtn.className = "w-16 h-16 rounded-full bg-blue-600 text-white flex items-center justify-center btn-focus-action shadow-[0_0_25px_rgba(37,99,235,0.4)]";
+            toggleBtn.className = "w-16 h-16 rounded-full bg-blue-600 text-white flex items-center justify-center btn-focus-action shadow-[0_0_25px_rgba(37,99,235,0.35)]";
             iconToggle.setAttribute('data-lucide', 'play');
             iconToggle.classList.add('ml-1');
             lucide.createIcons({ root: toggleBtn });
@@ -2616,6 +2717,11 @@ function updateStopwatchUI(renderIcons = false) {
 function toggleStopwatch() {
     if (state.activeSession.pendingSave) {
         openSaveSessionModal();
+        return;
+    }
+
+    if (!state.activeSession.isRunning && (Number(state.activeSession.elapsedMs) || 0) <= 0 && !focusStartArmed) {
+        openFocusStartModal();
         return;
     }
 
@@ -2633,13 +2739,16 @@ function toggleStopwatch() {
         state.activeSession.startTime = Date.now();
         stopwatchInterval = setInterval(() => updateStopwatchUI(false), 1000);
     }
+    focusStartArmed = false;
     saveState();
     updateStopwatchUI(true);
 }
 
 function resetStopwatch() {
     if(confirm('هل أنت متأكد من إلغاء هذه الجلسة؟ لن يتم حفظ الوقت.')) {
-        state.activeSession = { isRunning: false, startTime: null, elapsedMs: 0, pendingSave: false };
+        state.activeSession = { isRunning: false, startTime: null, elapsedMs: 0, pendingSave: false, subjectId: null, goalMs: 0, goalRewardClaimed: false, goalReached: false, goalReachedAt: null };
+        focusStartArmed = false;
+        focusGoalToastShown = false;
         clearStopwatchInterval();
         saveState();
         updateStopwatchUI(true);
@@ -2651,8 +2760,7 @@ function finishSession() {
         openSaveSessionModal();
         return;
     }
-    let totalMs = state.activeSession.elapsedMs;
-    if (state.activeSession.isRunning && state.activeSession.startTime) totalMs += Date.now() - state.activeSession.startTime;
+    let totalMs = getActiveStopwatchElapsedMs();
     let minutes = Math.floor(totalMs / 60000);
     if (minutes < 1) {
         showToast('الجلسة قصيرة جداً (أقل من دقيقة)، لم يتم حفظها.', 'info');
@@ -2663,14 +2771,139 @@ function finishSession() {
         totalMs = 720 * 60000;
         showToast('تم تحديد الجلسة بـ 12 ساعة كحد أقصى لمنع التلاعب بالوقت.', 'info');
     }
+    if (isZenMode) toggleZenMode();
     state.activeSession.isRunning = false;
     state.activeSession.elapsedMs = totalMs;
     state.activeSession.startTime = null;
     state.activeSession.pendingSave = true;
+    state.activeSession.goalReached = state.activeSession.goalReached || (state.activeSession.goalMs > 0 && totalMs >= state.activeSession.goalMs);
     clearStopwatchInterval();
     saveState();
     updateStopwatchUI(true);
     openSaveSessionModal();
+}
+
+function openFocusStartModal() {
+    const modal = document.getElementById('modal-focus-start');
+    const content = document.getElementById('modal-focus-start-content');
+    if (!modal || !content) return;
+    focusStartArmed = false;
+    const selected = document.getElementById('focus-start-subject-list');
+    const goalWrap = document.getElementById('focus-start-goal-step');
+    const helper = document.getElementById('focus-start-helper');
+    const startBtn = document.getElementById('btn-start-focus-session');
+    if (goalWrap) goalWrap.classList.add('hidden');
+    if (helper) helper.textContent = 'اختار المادة الأول، وبعدها حط هدفًا للوقت لو حابب.';
+    if (startBtn) startBtn.disabled = true;
+    if (selected) selected.dataset.selectedId = '';
+    const goalButtons = modal.querySelectorAll('[data-focus-goal]');
+    goalButtons.forEach(btn => btn.classList.toggle('is-selected', btn.dataset.focusGoal === '0'));
+    const custom = document.getElementById('focus-custom-goal');
+    if (custom) custom.value = '';
+    renderFocusStartSubjects();
+    modal.classList.remove('hidden'); modal.style.display='flex';
+    setTimeout(() => {
+        modal.classList.remove('opacity-0'); modal.classList.add('modal-overlay-enter');
+        content.classList.remove('opacity-0','scale-95'); content.classList.add('modal-animate-enter');
+    }, 10);
+}
+
+function renderFocusStartSubjects() {
+    const container = document.getElementById('focus-start-subject-list');
+    if (!container) return;
+    if (!Array.isArray(state.studySubjects) || state.studySubjects.length === 0) {
+        container.innerHTML = `<div class="rodo-focus-empty-subjects"><i data-lucide="book-plus"></i><span>أضف أول مادة عشان نقدر نسجل الجلسة صح.</span></div>`;
+        lucide.createIcons({root:container});
+        return;
+    }
+    container.innerHTML = state.studySubjects.map(sub => `
+        <button type="button" data-focus-subject="${sub.id}" class="rodo-focus-subject-card">
+            <span class="rodo-focus-subject-icon"><i data-lucide="book-open"></i></span>
+            <span class="rodo-focus-subject-copy"><strong>${escapeHTML(sub.name)}</strong><small>${formatStudyTimeShort(sub.totalMinutes || 0)} إجمالي</small></span>
+            <i data-lucide="check" class="rodo-focus-subject-check"></i>
+        </button>
+    `).join('');
+    container.querySelectorAll('[data-focus-subject]').forEach(btn => {
+        btn.addEventListener('click', () => selectFocusStartSubject(btn.dataset.focusSubject));
+    });
+    lucide.createIcons({root:container});
+}
+
+function selectFocusStartSubject(subjectId) {
+    const subject = state.studySubjects.find(s => String(s.id) === String(subjectId));
+    if (!subject) return;
+    const list = document.getElementById('focus-start-subject-list');
+    const goalWrap = document.getElementById('focus-start-goal-step');
+    const helper = document.getElementById('focus-start-helper');
+    const startBtn = document.getElementById('btn-start-focus-session');
+    if (list) list.dataset.selectedId = String(subject.id);
+    document.querySelectorAll('#focus-start-subject-list [data-focus-subject]').forEach(btn => btn.classList.toggle('is-selected', String(btn.dataset.focusSubject) === String(subject.id)));
+    if (goalWrap) goalWrap.classList.remove('hidden');
+    if (helper) helper.textContent = `مادة الجلسة: ${subject.name}. والهدف اختياري تمامًا.`;
+    if (startBtn) startBtn.disabled = false;
+    updateFocusGoalRewardPreview();
+}
+
+function updateFocusGoalRewardPreview() {
+    const modal = document.getElementById('modal-focus-start');
+    const list = document.getElementById('focus-start-subject-list');
+    const reward = document.getElementById('focus-goal-reward-preview');
+    if (!modal || !reward || !list?.dataset.selectedId) return;
+    const selected = modal.querySelector('[data-focus-goal].is-selected');
+    const custom = document.getElementById('focus-custom-goal');
+    let minutes = selected ? Number(selected.dataset.focusGoal) : 0;
+    if (minutes === -1) minutes = normalizeFocusGoalMinutes(custom?.value || 0);
+    const bonus = getFocusGoalReward(minutes);
+    reward.textContent = minutes > 0 ? `عند تحقيق ${formatFocusGoal(minutes)} · +${bonus.coins} عملة · +${bonus.xp} XP` : 'بدون هدف · المكافأة حسب وقت الدراسة فقط';
+}
+
+function selectFocusGoal(goalValue) {
+    const modal = document.getElementById('modal-focus-start');
+    if (!modal) return;
+    modal.querySelectorAll('[data-focus-goal]').forEach(btn => btn.classList.toggle('is-selected', btn.dataset.focusGoal === String(goalValue)));
+    const custom = document.getElementById('focus-custom-goal');
+    if (custom && String(goalValue) !== '-1') custom.value = '';
+    updateFocusGoalRewardPreview();
+}
+
+function startConfiguredFocusSession() {
+    const modal = document.getElementById('modal-focus-start');
+    const list = document.getElementById('focus-start-subject-list');
+    if (!modal || !list?.dataset.selectedId) return;
+    const subject = state.studySubjects.find(s => String(s.id) === String(list.dataset.selectedId));
+    if (!subject) return;
+    const selected = modal.querySelector('[data-focus-goal].is-selected');
+    const custom = document.getElementById('focus-custom-goal');
+    let goalMinutes = selected ? Number(selected.dataset.focusGoal) : 0;
+    if (goalMinutes === -1) goalMinutes = normalizeFocusGoalMinutes(custom?.value || 0);
+    if (goalMinutes > 0 && goalMinutes < 15) goalMinutes = 15;
+    if (goalMinutes > 720) goalMinutes = 720;
+
+    state.activeSession = {
+        isRunning: false,
+        startTime: null,
+        elapsedMs: 0,
+        pendingSave: false,
+        subjectId: subject.id,
+        goalMs: goalMinutes * 60000,
+        goalRewardClaimed: false,
+        goalReached: false,
+        goalReachedAt: null
+    };
+    focusStartArmed = true;
+    focusGoalToastShown = false;
+    closeFocusStartModal();
+    saveState();
+    toggleStopwatch();
+}
+
+function closeFocusStartModal() {
+    const modal = document.getElementById('modal-focus-start');
+    const content = document.getElementById('modal-focus-start-content');
+    if (!modal) return;
+    modal.classList.remove('modal-overlay-enter'); modal.classList.add('opacity-0');
+    if (content) { content.classList.remove('modal-animate-enter'); content.classList.add('opacity-0','scale-95'); }
+    setTimeout(() => { modal.classList.add('hidden'); modal.style.display='none'; }, 260);
 }
 
 function openSaveSessionModal() {
@@ -2709,11 +2942,39 @@ function closeSaveSessionModal() {
 
 function renderModalSubjects() {
     const container = document.getElementById('modal-subject-list');
+    if (!container) return;
+    const selectedId = state.activeSession?.subjectId;
+    const selectedSubject = selectedId != null ? state.studySubjects.find(s => String(s.id) === String(selectedId)) : null;
+    const totalMs = Math.max(0, Number(state.activeSession?.elapsedMs) || 0);
+    const goalMs = Math.max(0, Number(state.activeSession?.goalMs) || 0);
+    const goalReached = !!state.activeSession?.goalReached || (goalMs > 0 && totalMs >= goalMs);
+
+    if (selectedSubject) {
+        const goalMinutes = goalMs / 60000;
+        const bonus = goalReached ? getFocusGoalReward(goalMinutes) : { coins: 0, xp: 0 };
+        container.innerHTML = `
+            <div class="rodo-save-session-summary">
+                <div class="rodo-save-session-subject">
+                    <span class="rodo-save-session-icon"><i data-lucide="book-open"></i></span>
+                    <div><small>المادة</small><strong>${escapeHTML(selectedSubject.name)}</strong></div>
+                </div>
+                <div class="rodo-save-session-meta">
+                    <span>${goalMs > 0 ? `هدف ${escapeHTML(formatFocusGoal(goalMinutes))}` : 'بدون هدف'}</span>
+                    <span class="${goalReached ? 'is-complete' : ''}">${goalMs > 0 ? (goalReached ? `الهدف اكتمل · +${bonus.coins} عملة · +${bonus.xp} XP` : 'الهدف لم يكتمل') : 'جلسة مفتوحة'}</span>
+                </div>
+            </div>
+            <button type="button" onclick="confirmSaveSession(${selectedSubject.id})" class="rodo-save-session-confirm">
+                <i data-lucide="check"></i><span>حفظ الجلسة</span>
+            </button>
+        `;
+        lucide.createIcons({ root: container });
+        return;
+    }
+
     if (state.studySubjects.length === 0) {
         container.innerHTML = `<div class="text-center p-4 border border-dashed border-white/20 rounded-xl opacity-70 mb-2"><p class="text-sm text-white/70">لم تقم بإضافة أي مواد بعد. أضف مادتك الأولى بالأسفل لحفظ الجلسة.</p></div>`;
         return;
     }
-    
     container.innerHTML = state.studySubjects.map(sub => `
         <button onclick="confirmSaveSession(${sub.id})" class="w-full text-right p-3 min-h-[44px] rounded-xl bg-white/5 border border-white/10 hover:bg-blue-500/20 hover:border-blue-500/50 transition-all flex items-center justify-between group btn-press mb-2">
             <span class="font-bold text-white group-hover:text-blue-400">${escapeHTML(sub.name)}</span>
@@ -2721,6 +2982,16 @@ function renderModalSubjects() {
         </button>
     `).join('');
     lucide.createIcons({ root: container });
+}
+
+function addStudySubjectFromFocusStart() {
+    const input = document.getElementById('focus-new-subject-input');
+    const name = input?.value.trim();
+    if (!name) return;
+    const exists = state.studySubjects.some(s => s.name.trim().toLowerCase() === name.toLowerCase());
+    if (exists) { showToast('المادة موجودة بالفعل.', 'info'); return; }
+    const subject = { id:createEntityId(), name, totalMinutes:0, weeklyGoal:0, lastStudied:'لم تُدرس بعد', history:[] };
+    state.studySubjects.push(subject); saveState(); renderStudyTimeTable(); renderFocusStartSubjects(); selectFocusStartSubject(subject.id); if (input) input.value='';
 }
 
 function addStudySubjectFromModal() {
@@ -2744,53 +3015,71 @@ function addStudySubjectFromModal() {
 
 function confirmSaveSession(subjectId) {
     if (!state.activeSession || !state.activeSession.pendingSave) return;
-    const subject = state.studySubjects.find(s => s.id === subjectId);
+    const resolvedSubjectId = state.activeSession.subjectId != null ? state.activeSession.subjectId : subjectId;
+    const subject = state.studySubjects.find(s => String(s.id) === String(resolvedSubjectId));
     if (!subject) return;
 
-    const totalMs = state.activeSession.elapsedMs;
+    const totalMs = Math.max(0, Number(state.activeSession.elapsedMs) || 0);
     const rawMinutes = Math.floor(totalMs / 60000);
     const focusMultiplier = getBoostMultiplier('focus');
-    const minutes = Math.floor(rawMinutes * focusMultiplier);
-    
+    const minutes = Math.min(720, Math.floor(rawMinutes * focusMultiplier));
+    if (minutes < 1) return;
+
     if(!subject.history) subject.history = [];
-    
     const todayStr = getLocalDateStr();
-    
     const finalXp = Math.floor((minutes * 2) * getBoostMultiplier('xp'));
     const finalCoins = Math.floor((minutes * 1) * getBoostMultiplier('coin'));
-    
     const sessionId = createEntityId();
     const rewardId = createRewardId('focus', sessionId);
+    const goalMinutes = normalizeFocusGoalMinutes((Number(state.activeSession.goalMs) || 0) / 60000);
+    const goalReached = !!state.activeSession.goalReached || (goalMinutes > 0 && rawMinutes >= goalMinutes);
+    const goalReward = goalReached && !state.activeSession.goalRewardClaimed ? getFocusGoalReward(goalMinutes) : { coins: 0, xp: 0 };
+    const goalRewardId = goalReward.coins > 0 || goalReward.xp > 0 ? createRewardId('focus-goal', sessionId) : null;
     const focusSnapshot = saveSnapshot();
+
     if (!RewardService.grant({ id: rewardId, xp: finalXp, coins: finalCoins, meta: { source: 'focus', subjectId: subject.id, sessionId } })) {
         state = JSON.parse(focusSnapshot);
-        renderStudyTimeTable();
-        renderRecentSessions();
+        renderStudyTimeTable(); renderRecentSessions(); updateStopwatchUI(true);
         showToast('المكافأة مسجلة بالفعل ولم يتم تكرارها.', 'info');
+        return;
+    }
+    if (goalRewardId && !RewardService.grant({
+        id: goalRewardId,
+        xp: goalReward.xp,
+        coins: goalReward.coins,
+        meta: { source: 'focus-goal', subjectId: subject.id, sessionId, goalMinutes }
+    })) {
+        state = JSON.parse(focusSnapshot);
+        renderStudyTimeTable(); renderRecentSessions(); updateStopwatchUI(true);
+        showToast('تعذر تسجيل مكافأة الهدف بأمان؛ لم تتغير الجلسة أو الأرصدة.', 'info');
         return;
     }
 
     subject.history.push({
         id: sessionId,
         date: todayStr,
-        minutes: minutes,
+        minutes,
         timestamp: Date.now(),
-        earnedXp: finalXp,
-        earnedCoins: finalCoins,
-        rewardId
+        earnedXp: finalXp + goalReward.xp,
+        earnedCoins: finalCoins + goalReward.coins,
+        rewardId,
+        goalMinutes,
+        goalReached,
+        goalRewardId,
+        goalBonusXp: goalReward.xp,
+        goalBonusCoins: goalReward.coins
     });
-    
     subject.totalMinutes += minutes;
     subject.lastStudied = new Date().toLocaleDateString('ar-EG');
     state.totalFocusMinutes += minutes;
     state.todayStats.focus += minutes;
     state.weeklyStats.focus += minutes;
-    
     updateHeatmap(finalXp);
     updateDailyStreak();
-    
-    state.activeSession = { isRunning: false, startTime: null, elapsedMs: 0, pendingSave: false };
-    
+
+    state.activeSession = { isRunning: false, startTime: null, elapsedMs: 0, pendingSave: false, subjectId: null, goalMs: 0, goalRewardClaimed: false, goalReached: false, goalReachedAt: null };
+    focusStartArmed = false;
+    focusGoalToastShown = false;
     saveState();
     closeSaveSessionModal();
     updateStopwatchUI(true);
@@ -2798,9 +3087,12 @@ function confirmSaveSession(subjectId) {
     renderRecentSessions();
     renderStats();
     renderAcademicOverview();
-    
+
     playSound('reward');
-    showToast(`أحسنت! تمت إضافة ${minutes} دقيقة إلى ${subject.name}. +${finalXp} XP`, 'success');
+    const goalMessage = goalReward.coins > 0 || goalReward.xp > 0
+        ? ` +${goalReward.xp} XP و+${goalReward.coins} عملة مكافأة الهدف.`
+        : '';
+    showToast(`أحسنت! تمت إضافة ${minutes} دقيقة إلى ${subject.name}. +${finalXp} XP${goalMessage}`, 'success');
     triggerStoreEffect('focus-complete');
 }
 
@@ -2997,27 +3289,19 @@ function renderRecentSessions() {
 }
 
 function _revertSessionTransaction(session, rewardAlreadyRevoked = false) {
-    const revXp = session.earnedXp !== undefined ? session.earnedXp : session.minutes * 2;
-    const revCoins = session.earnedCoins !== undefined ? session.earnedCoins : session.minutes * 1;
-    if (!rewardAlreadyRevoked && !revokeRewardsSafely([{ id: session.rewardId, xp: revXp, coins: revCoins }])) return false;
+    const baseXp = session.earnedXp !== undefined ? Math.max(0, Math.floor(Number(session.earnedXp) || 0) - Math.max(0, Number(session.goalBonusXp) || 0)) : session.minutes * 2;
+    const baseCoins = session.earnedCoins !== undefined ? Math.max(0, Math.floor(Number(session.earnedCoins) || 0) - Math.max(0, Number(session.goalBonusCoins) || 0)) : session.minutes * 1;
+    const requests = [{ id: session.rewardId, xp: baseXp, coins: baseCoins }];
+    if (session.goalRewardId) requests.push({ id: session.goalRewardId, xp: Number(session.goalBonusXp) || 0, coins: Number(session.goalBonusCoins) || 0 });
+    if (!rewardAlreadyRevoked && !revokeRewardsSafely(requests)) return false;
 
     state.totalFocusMinutes = Math.max(0, state.totalFocusMinutes - session.minutes);
-    
     const todayStr = getLocalDateStr();
-    if (session.date === todayStr) {
-        state.todayStats.focus = Math.max(0, state.todayStats.focus - session.minutes);
-    }
-    
+    if (session.date === todayStr) state.todayStats.focus = Math.max(0, state.todayStats.focus - session.minutes);
     const sessionDate = new Date(session.date);
-    const sevenDaysAgo = new Date();
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-    if (sessionDate >= sevenDaysAgo) {
-        state.weeklyStats.focus = Math.max(0, state.weeklyStats.focus - session.minutes);
-    }
-
-    if (state.heatmapData[session.date]) {
-        state.heatmapData[session.date] = Math.max(0, state.heatmapData[session.date] - revXp);
-    }
+    const sevenDaysAgo = new Date(); sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    if (sessionDate >= sevenDaysAgo) state.weeklyStats.focus = Math.max(0, state.weeklyStats.focus - session.minutes);
+    if (state.heatmapData[session.date]) state.heatmapData[session.date] = Math.max(0, state.heatmapData[session.date] - baseXp);
     return true;
 }
 
@@ -3069,11 +3353,13 @@ function deleteStudySubject(id) {
     const subject = state.studySubjects.find(s => s.id === id);
     if (!subject) return;
     const sessions = Array.isArray(subject.history) ? subject.history : [];
-    const reversals = sessions.map(session => ({
-        id: session.rewardId,
-        xp: session.earnedXp !== undefined ? session.earnedXp : session.minutes * 2,
-        coins: session.earnedCoins !== undefined ? session.earnedCoins : session.minutes * 1
-    }));
+    const reversals = sessions.flatMap(session => {
+        const baseXp = session.earnedXp !== undefined ? Math.max(0, Math.floor(Number(session.earnedXp) || 0) - Math.max(0, Number(session.goalBonusXp) || 0)) : session.minutes * 2;
+        const baseCoins = session.earnedCoins !== undefined ? Math.max(0, Math.floor(Number(session.earnedCoins) || 0) - Math.max(0, Number(session.goalBonusCoins) || 0)) : session.minutes * 1;
+        const rows = [{ id: session.rewardId, xp: baseXp, coins: baseCoins }];
+        if (session.goalRewardId) rows.push({ id: session.goalRewardId, xp: Number(session.goalBonusXp) || 0, coins: Number(session.goalBonusCoins) || 0 });
+        return rows;
+    });
     if (!revokeRewardsSafely(reversals)) return;
     sessions.forEach(session => _revertSessionTransaction(session, true));
     
