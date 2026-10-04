@@ -1,0 +1,9 @@
+# Generated from the supplied RODO_Study_Atelier_Logic_Policy_Fix.zip.
+# This is a forensic baseline, not a build artifact. Update only after a verified change.
+842fc5ae4c49156556c59c9436179fd30199d644f4d51a18768683389bc250d5  index.html
+9e26e216fc136fede86c79a3b9e51c3e46b02a9660fee52a26053cb350cc8963  js/app.js
+d39466a227c24462862b7ecac4db63bde01d23299a4de1f02df04558052e9c1e  js/store-tools.js
+3e66229a4a2290e6b15ea4bbeb006aabd22699e879b5de3b76e76d6122b6e085  css/style.css
+47559e238649e7051b632ffe7fe7ea3b90ca5589eb27f6785c65cda25f441ec3  assets/images/logo.webp
+cb5c0aa6d1ae79931ee7561c4275496eb31effcd948221570d4b6f95dca5316c  assets/images/favicon.svg
+8ac8f33d5d431c2b78da649135214c01ed6e4c566ad3b42bf5409834e59dbaf7  STORE-INTEGRATION.md

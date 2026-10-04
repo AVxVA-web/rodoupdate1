@@ -2,7 +2,7 @@ if (typeof window.lucide === 'undefined') {
     window.lucide = { createIcons: function(options) { console.warn('Lucide icons not loaded. Check connection or CDN.'); } };
 }
 
-const CURRENT_STATE_VERSION = 5;
+const CURRENT_STATE_VERSION = 6;
 
 const CATEGORIES = {
     study: { label: 'مذاكرة', color: 'bg-purple-400', colorCode: '#c084fc', bgCheck: 'bg-purple-500', textCheck: 'text-purple-400' },
@@ -166,6 +166,7 @@ const INITIAL_STATE = {
     lastLoginDate: null,
     lastEventDate: null,
     tasks: [],
+    journals: [],
     inventory: [],
     goals: [],
     mainGoal: '',
@@ -300,28 +301,104 @@ const RewardService = {
         return true;
     },
 
-    revoke(id, fallbackXp = 0, fallbackCoins = 0) {
-        ensureRewardLedger();
-        if (id && typeof id === 'string') {
-            const entry = [...state.rewardLedger].reverse().find(item => item.id === id);
-            if (entry) {
-                if (entry.status === 'revoked') return false;
-                state.xp = Math.max(0, state.xp - Math.max(0, entry.xp || 0));
-                state.coins = Math.max(0, state.coins - Math.max(0, entry.coins || 0));
-                entry.status = 'revoked';
-                entry.revokedAt = Date.now();
-                return true;
-            }
+    revokeBatch(requests) {
+        if (!Array.isArray(requests) || requests.length === 0) {
+            return { ok: false, reason: 'empty-request', xp: 0, coins: 0 };
         }
 
-        const safeXp = Number.isFinite(fallbackXp) ? Math.max(0, Math.floor(fallbackXp)) : 0;
-        const safeCoins = Number.isFinite(fallbackCoins) ? Math.max(0, Math.floor(fallbackCoins)) : 0;
-        if (safeXp === 0 && safeCoins === 0) return false;
-        state.xp = Math.max(0, state.xp - safeXp);
-        state.coins = Math.max(0, state.coins - safeCoins);
-        return true;
+        const ledger = Array.isArray(state.rewardLedger)
+            ? state.rewardLedger.filter(entry => entry && typeof entry.id === 'string')
+            : [];
+        const latestEntryById = new Map();
+        for (const entry of ledger) latestEntryById.set(entry.id, entry);
+        const seenIds = new Set();
+        const plan = [];
+        let totalXp = 0;
+        let totalCoins = 0;
+
+        for (const request of requests) {
+            if (!request) {
+                return { ok: false, reason: 'invalid-or-duplicate-reward', xp: 0, coins: 0 };
+            }
+            const hasId = typeof request.id === 'string' && request.id.trim().length > 0;
+            if (hasId && seenIds.has(request.id)) {
+                return { ok: false, reason: 'invalid-or-duplicate-reward', xp: 0, coins: 0 };
+            }
+            if (hasId) seenIds.add(request.id);
+            const ledgerEntry = hasId ? (latestEntryById.get(request.id) || null) : null;
+            if (ledgerEntry && ledgerEntry.status === 'revoked') {
+                return { ok: false, reason: 'already-revoked', xp: 0, coins: 0 };
+            }
+
+            const fallbackXp = Number.isFinite(Number(request.xp)) ? Math.max(0, Math.floor(Number(request.xp))) : 0;
+            const fallbackCoins = Number.isFinite(Number(request.coins)) ? Math.max(0, Math.floor(Number(request.coins))) : 0;
+            const xp = ledgerEntry ? Math.max(0, Math.floor(Number(ledgerEntry.xp) || 0)) : fallbackXp;
+            const coins = ledgerEntry ? Math.max(0, Math.floor(Number(ledgerEntry.coins) || 0)) : fallbackCoins;
+            if (xp === 0 && coins === 0) {
+                return { ok: false, reason: 'missing-reward-amount', xp: 0, coins: 0 };
+            }
+
+            plan.push({ id: hasId ? request.id : null, ledgerEntry, xp, coins });
+            totalXp += xp;
+            totalCoins += coins;
+        }
+
+        const currentXp = Number(state.xp);
+        const currentCoins = Number(state.coins);
+        const availableXp = Number.isFinite(currentXp) ? Math.max(0, Math.floor(currentXp)) : 0;
+        const availableCoins = Number.isFinite(currentCoins) ? Math.max(0, Math.floor(currentCoins)) : 0;
+        if (availableXp < totalXp || availableCoins < totalCoins) {
+            return {
+                ok: false,
+                reason: 'insufficient-balance',
+                xp: totalXp,
+                coins: totalCoins,
+                availableXp,
+                availableCoins
+            };
+        }
+
+        const now = Date.now();
+        state.rewardLedger = ledger;
+        state.xp = availableXp - totalXp;
+        state.coins = availableCoins - totalCoins;
+        for (const item of plan) {
+            if (item.ledgerEntry) {
+                item.ledgerEntry.status = 'revoked';
+                item.ledgerEntry.revokedAt = now;
+            } else if (item.id) {
+                // Preserve an idempotency tombstone when an old source entry has aged out of the 500-row ledger.
+                state.rewardLedger.push({
+                    id: item.id,
+                    xp: item.xp,
+                    coins: item.coins,
+                    status: 'revoked',
+                    createdAt: now,
+                    revokedAt: now,
+                    meta: { source: 'study-tool-reversal', recoveredFromSourceRecord: true }
+                });
+            }
+        }
+        if (state.rewardLedger.length > 500) state.rewardLedger.splice(0, state.rewardLedger.length - 500);
+        return { ok: true, reason: null, xp: totalXp, coins: totalCoins };
+    },
+
+    revoke(id, fallbackXp = 0, fallbackCoins = 0) {
+        return this.revokeBatch([{ id, xp: fallbackXp, coins: fallbackCoins }]).ok;
     }
 };
+
+function revokeRewardsSafely(requests) {
+    if (!Array.isArray(requests) || requests.length === 0) return true;
+    const result = RewardService.revokeBatch(requests);
+    if (result.ok) return true;
+    if (result.reason === 'insufficient-balance') {
+        showToast(`لا يمكن عكس المكافأة الآن؛ يلزم توفر كاملها (${result.xp} XP و${result.coins} عملة). لم تتغير البيانات أو الأرصدة.`, 'info');
+    } else {
+        showToast('تعذّر التحقق من المكافأة بأمان؛ لم تتغير البيانات أو الأرصدة. أعد تحميل التطبيق ثم حاول مجددًا.', 'info');
+    }
+    return false;
+}
 
 function normalizeRewardId(existingId, scope, entityId) {
     return (typeof existingId === 'string' && existingId.trim()) ? existingId : createRewardId(scope, entityId);
@@ -429,6 +506,10 @@ function runMigrations(loadedState) {
             s.store.studyTools = { owned: [], active: [], templateSettings: {}, flashcards: [], focusMode: { phase: 'focus', breakUntil: null, cycleStartElapsedMs: 0 } };
         }
     }
+    if (s.version < 6) {
+        // Journals are an additive, independent domain. Existing data is left untouched.
+        if (!Array.isArray(s.journals)) s.journals = [];
+    }
     s.version = CURRENT_STATE_VERSION;
     return s;
 }
@@ -457,7 +538,7 @@ function normalizeStateCollections(targetState) {
 
     const arrayDefaults = {
         tasks: [], goals: [], lessons: [], studyPlan: [], examSubjects: [], studySubjects: [],
-        weaknesses: [], rewards: [], rewardLedger: []
+        journals: [], weaknesses: [], rewards: [], rewardLedger: []
     };
     Object.entries(arrayDefaults).forEach(([key, fallback]) => {
         if (!Array.isArray(s[key])) s[key] = [...fallback];
@@ -476,6 +557,18 @@ function normalizeStateCollections(targetState) {
         if (t.completed && t.rewardId != null) t.rewardId = String(t.rewardId);
         if (t.earnedXp !== undefined) t.earnedXp = nonNegativeInt(t.earnedXp, 0);
         if (t.earnedCoins !== undefined) t.earnedCoins = nonNegativeInt(t.earnedCoins, 0);
+    });
+
+    s.journals = normalizeEntityIds(s.journals.filter(Boolean).map(j => ({ ...j })).filter(j => String(j.content ?? '').trim()));
+    s.journals.forEach(j => {
+        j.title = String(j.title ?? '').trim().slice(0, 120);
+        j.content = String(j.content ?? '').trim().slice(0, 12000);
+        const dateKey = String(j.dateKey ?? '');
+        j.dateKey = /^\d{4}-\d{2}-\d{2}$/.test(dateKey) ? dateKey : getLocalDateStr(j.createdAt ? new Date(j.createdAt) : new Date());
+        const createdAt = Number(j.createdAt);
+        const updatedAt = Number(j.updatedAt);
+        j.createdAt = Number.isFinite(createdAt) && createdAt > 0 ? createdAt : Date.now();
+        j.updatedAt = Number.isFinite(updatedAt) && updatedAt > 0 ? updatedAt : j.createdAt;
     });
 
     s.goals = normalizeEntityIds(s.goals.filter(Boolean).map(g => ({ ...g })).filter(g => String(g.text ?? '').trim()));
@@ -1832,7 +1925,7 @@ function keepActiveNavVisible(tabId) {
 }
 
 function switchTab(tabId) {
-    const navs = ['dashboard', 'goals', 'focus', 'store', 'stats', 'profile', 'schedule', 'exams', 'weaknesses'];
+    const navs = ['dashboard', 'goals', 'focus', 'store', 'stats', 'schedule', 'exams', 'weaknesses', 'profile', 'journal'];
     navs.forEach(nav => {
         const btn = document.getElementById(`nav-${nav}`);
         const section = document.getElementById(`view-${nav}`);
@@ -1843,6 +1936,7 @@ function switchTab(tabId) {
             if(tabId === 'schedule') activeColor = 'text-emerald-400 bg-emerald-500/10';
             if(tabId === 'exams') activeColor = 'text-indigo-400 bg-indigo-500/10';
             if(tabId === 'weaknesses') activeColor = 'text-rose-400 bg-rose-500/10';
+            if(tabId === 'journal') activeColor = 'text-amber-300 bg-amber-500/10';
             
             if (btn) btn.className = `flex-1 min-w-[50px] min-h-[44px] py-2 px-1 rounded-xl flex flex-col items-center justify-center gap-1 transition-all shadow-inner ${activeColor}`;
             if (section) section.classList.add('active');
@@ -1860,6 +1954,7 @@ function switchTab(tabId) {
     if (tabId === 'schedule') renderSchedule();
     if (tabId === 'exams') renderExams();
     if (tabId === 'weaknesses') renderErrorBank();
+    if (tabId === 'journal' && window.RODOJournal) window.RODOJournal.render();
     if (tabId === 'focus') { updateStopwatchUI(true); renderHeatmap(); renderStudyTimeTable(); renderRecentSessions(); }
     
     const navBar = document.querySelector('nav');
@@ -1960,8 +2055,11 @@ function toggleHabit(id) {
     } else {
         const revXp = habit.earnedXp !== undefined ? habit.earnedXp : 10;
         const revCoins = habit.earnedCoins !== undefined ? habit.earnedCoins : 10;
-        
-        RewardService.revoke(habit.rewardId, revXp, revCoins);
+        if (!revokeRewardsSafely([{ id: habit.rewardId, xp: revXp, coins: revCoins }])) {
+            habit.completed = true;
+            renderHabits();
+            return;
+        }
         habit.rewardId = null;
         state.todayStats.xp = Math.max(0, state.todayStats.xp - revXp); state.weeklyStats.xp = Math.max(0, state.weeklyStats.xp - revXp);
         updateHeatmap(-revXp);
@@ -1976,7 +2074,7 @@ function deleteHabit(id, e) {
     if (habit && habit.completed) {
         const revXp = habit.earnedXp !== undefined ? habit.earnedXp : 10;
         const revCoins = habit.earnedCoins !== undefined ? habit.earnedCoins : 10;
-        RewardService.revoke(habit.rewardId, revXp, revCoins);
+        if (!revokeRewardsSafely([{ id: habit.rewardId, xp: revXp, coins: revCoins }])) return;
         state.todayStats.xp = Math.max(0, state.todayStats.xp - revXp); state.weeklyStats.xp = Math.max(0, state.weeklyStats.xp - revXp);
         updateHeatmap(-revXp);
     }
@@ -2089,8 +2187,11 @@ function toggleBigQuest(id) {
     } else {
         const revXp = goal.earnedXp !== undefined ? goal.earnedXp : 500;
         const revCoins = goal.earnedCoins !== undefined ? goal.earnedCoins : 500;
-
-        RewardService.revoke(goal.rewardId, revXp, revCoins);
+        if (!revokeRewardsSafely([{ id: goal.rewardId, xp: revXp, coins: revCoins }])) {
+            goal.completed = true;
+            renderGoals();
+            return;
+        }
         goal.rewardId = null;
         state.todayStats.xp = Math.max(0, state.todayStats.xp - revXp); state.weeklyStats.xp = Math.max(0, state.weeklyStats.xp - revXp);
         updateHeatmap(-100);
@@ -2105,7 +2206,7 @@ function deleteBigQuest(id, event) {
     if (goal && goal.completed) {
         const revXp = goal.earnedXp !== undefined ? goal.earnedXp : 500;
         const revCoins = goal.earnedCoins !== undefined ? goal.earnedCoins : 500;
-        RewardService.revoke(goal.rewardId, revXp, revCoins);
+        if (!revokeRewardsSafely([{ id: goal.rewardId, xp: revXp, coins: revCoins }])) return;
         state.todayStats.xp = Math.max(0, state.todayStats.xp - revXp); state.weeklyStats.xp = Math.max(0, state.weeklyStats.xp - revXp);
         updateHeatmap(-100);
     }
@@ -2365,8 +2466,11 @@ function toggleTask(id) {
     } else {
         const revXp = task.earnedXp !== undefined ? task.earnedXp : task.xp;
         const revCoins = task.earnedCoins !== undefined ? task.earnedCoins : task.xp;
-
-        RewardService.revoke(task.rewardId, revXp, revCoins);
+        if (!revokeRewardsSafely([{ id: task.rewardId, xp: revXp, coins: revCoins }])) {
+            task.completed = true;
+            renderTasks();
+            return;
+        }
         task.rewardId = null;
         state.stats[task.category] = Math.max(0, state.stats[task.category] - 1);
         state.todayStats.tasks = Math.max(0, state.todayStats.tasks - 1); state.todayStats.xp = Math.max(0, state.todayStats.xp - revXp);
@@ -2383,7 +2487,7 @@ function deleteTask(id, event) {
     if (task && task.completed) {
         const revXp = task.earnedXp !== undefined ? task.earnedXp : task.xp;
         const revCoins = task.earnedCoins !== undefined ? task.earnedCoins : task.xp;
-        RewardService.revoke(task.rewardId, revXp, revCoins);
+        if (!revokeRewardsSafely([{ id: task.rewardId, xp: revXp, coins: revCoins }])) return;
         state.stats[task.category] = Math.max(0, state.stats[task.category] - 1);
         state.todayStats.tasks = Math.max(0, state.todayStats.tasks - 1); state.todayStats.xp = Math.max(0, state.todayStats.xp - revXp);
         state.weeklyStats.tasks = Math.max(0, state.weeklyStats.tasks - 1); state.weeklyStats.xp = Math.max(0, state.weeklyStats.xp - revXp);
@@ -2892,9 +2996,10 @@ function renderRecentSessions() {
     lucide.createIcons({ root: container });
 }
 
-function _revertSessionTransaction(session) {
+function _revertSessionTransaction(session, rewardAlreadyRevoked = false) {
     const revXp = session.earnedXp !== undefined ? session.earnedXp : session.minutes * 2;
     const revCoins = session.earnedCoins !== undefined ? session.earnedCoins : session.minutes * 1;
+    if (!rewardAlreadyRevoked && !revokeRewardsSafely([{ id: session.rewardId, xp: revXp, coins: revCoins }])) return false;
 
     state.totalFocusMinutes = Math.max(0, state.totalFocusMinutes - session.minutes);
     
@@ -2910,11 +3015,10 @@ function _revertSessionTransaction(session) {
         state.weeklyStats.focus = Math.max(0, state.weeklyStats.focus - session.minutes);
     }
 
-    RewardService.revoke(session.rewardId, revXp, revCoins);
-
     if (state.heatmapData[session.date]) {
         state.heatmapData[session.date] = Math.max(0, state.heatmapData[session.date] - revXp);
     }
+    return true;
 }
 
 function deleteSession(subjectId, sessionId) {
@@ -2928,7 +3032,7 @@ function deleteSession(subjectId, sessionId) {
 
     const session = subject.history[sessionIndex];
     
-    _revertSessionTransaction(session);
+    if (!_revertSessionTransaction(session)) return;
 
     subject.history.splice(sessionIndex, 1);
     subject.totalMinutes = Math.max(0, subject.totalMinutes - session.minutes);
@@ -2963,11 +3067,15 @@ function deleteStudySubject(id) {
     if (!confirm('هل أنت متأكد من حذف هذه المادة؟ سيتم مسح سجل وقتها بالكامل وسيتم خصم الخبرة والوقت المرتبط بجلساتها.')) return;
     
     const subject = state.studySubjects.find(s => s.id === id);
-    if (subject && subject.history && Array.isArray(subject.history)) {
-        subject.history.forEach(session => {
-            _revertSessionTransaction(session);
-        });
-    }
+    if (!subject) return;
+    const sessions = Array.isArray(subject.history) ? subject.history : [];
+    const reversals = sessions.map(session => ({
+        id: session.rewardId,
+        xp: session.earnedXp !== undefined ? session.earnedXp : session.minutes * 2,
+        coins: session.earnedCoins !== undefined ? session.earnedCoins : session.minutes * 1
+    }));
+    if (!revokeRewardsSafely(reversals)) return;
+    sessions.forEach(session => _revertSessionTransaction(session, true));
     
     state.studySubjects = state.studySubjects.filter(s => s.id !== id);
     
@@ -4020,8 +4128,11 @@ function toggleScheduleItem(id) {
     } else { 
         const revXp = item.earnedXp !== undefined ? item.earnedXp : 20;
         const revCoins = item.earnedCoins !== undefined ? item.earnedCoins : 10;
-
-        RewardService.revoke(item.rewardId, revXp, revCoins);
+        if (!revokeRewardsSafely([{ id: item.rewardId, xp: revXp, coins: revCoins }])) {
+            item.completed = true;
+            renderScheduleItems();
+            return;
+        }
         item.rewardId = null;
         state.todayStats.xp = Math.max(0, state.todayStats.xp - revXp); state.weeklyStats.xp = Math.max(0, state.weeklyStats.xp - revXp);
         showToast('تم التراجع', 'info', true, localSnapshot);
@@ -4036,7 +4147,7 @@ function deleteScheduleItem(id, e) {
     if (item && item.completed) {
         const revXp = item.earnedXp !== undefined ? item.earnedXp : 20;
         const revCoins = item.earnedCoins !== undefined ? item.earnedCoins : 10;
-        RewardService.revoke(item.rewardId, revXp, revCoins);
+        if (!revokeRewardsSafely([{ id: item.rewardId, xp: revXp, coins: revCoins }])) return;
         state.todayStats.xp = Math.max(0, state.todayStats.xp - revXp); state.weeklyStats.xp = Math.max(0, state.weeklyStats.xp - revXp);
     }
     if (activeScheduleTab === 'lessons') state.lessons = state.lessons.filter(i => i.id !== id);
@@ -4300,7 +4411,7 @@ function deleteExamResult(subjectId, examId) {
     if (exam.rewardId) {
         const revXp = Number.isFinite(exam.earnedXp) ? exam.earnedXp : 0;
         const revCoins = Number.isFinite(exam.earnedCoins) ? exam.earnedCoins : 0;
-        RewardService.revoke(exam.rewardId, revXp, revCoins);
+        if (!revokeRewardsSafely([{ id: exam.rewardId, xp: revXp, coins: revCoins }])) return;
     }
     subject.exams = subject.exams.filter(e => e.id !== examId);
     updateSubjectStats(subject);
@@ -4314,13 +4425,12 @@ function deleteExamSubject(subjectId) {
     
     const subject = state.examSubjects.find(s => s.id === subjectId);
     if (!subject) return;
-    if (Array.isArray(subject.exams)) {
-        subject.exams.forEach(exam => {
-            if (exam && exam.rewardId) {
-                RewardService.revoke(exam.rewardId, Number.isFinite(exam.earnedXp) ? exam.earnedXp : 0, Number.isFinite(exam.earnedCoins) ? exam.earnedCoins : 0);
-            }
-        });
-    }
+    const reversals = Array.isArray(subject.exams) ? subject.exams.filter(exam => exam && exam.rewardId).map(exam => ({
+        id: exam.rewardId,
+        xp: Number.isFinite(exam.earnedXp) ? exam.earnedXp : 0,
+        coins: Number.isFinite(exam.earnedCoins) ? exam.earnedCoins : 0
+    })) : [];
+    if (!revokeRewardsSafely(reversals)) return;
     state.examSubjects = state.examSubjects.filter(s => s.id !== subjectId);
     saveState();
     renderExams();

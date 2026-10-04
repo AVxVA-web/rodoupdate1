@@ -15,7 +15,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Alexandria:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="css/style.css?v=20261003-atelier-v2">
+    <link rel="stylesheet" href="css/style.css?v=20261004-journal-v1">
     
     <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
     <link rel="preconnect" href="https://cdn.tailwindcss.com" crossorigin>
@@ -30,7 +30,8 @@
         <p class="text-xl sm:text-2xl font-semibold tracking-widest text-white/90">العبها صح</p>
     </div>
 
-    <script src="js/app.js?v=20261003-atelier-v4" defer></script>
+    <script src="js/app.js?v=20261004-journal-v1" defer></script>
+    <script src="js/journal.js?v=20261004-journal-v1" defer></script>
     <script src="js/store-tools.js?v=20261003-atelier-v4" defer></script>
 
     <div class="ambient-glow bg-blue-600/30 w-[80vw] h-[60vw] top-[-10%] left-[-10%] md:w-[40vw] md:h-[40vw]"></div>
@@ -306,11 +307,11 @@
             <div class="rodo-store-topbar">
                 <div class="rodo-store-topbar-copy">
                     <span class="rodo-store-overline"><span class="rodo-live-dot"></span> RODO · STUDY ATELIER</span>
-                    <h2>أدوات دراسية، مش متجر ألعاب.</h2>
-                    <p>اقتناء واحد، ملكية دائمة، وتجربة مصممة بهدوء: كل أداة لها وظيفة واضحة وما تزوّرش سجل مذاكرتك.</p>
+                    <h2>أدواتك الدراسية، في مكان واحد.</h2>
+                    <p>اقتناء دائم لأدوات عملية؛ فعّل ما تحتاجه، وأوقفه متى شئت، مع بقاء بياناتك محفوظة.</p>
                 </div>
                 <div class="rodo-store-balance">
-                    <span>رصيدك</span>
+                    <span>رصيدك · عملة داخل التطبيق</span>
                     <strong id="ui-store-coins-magic">0</strong>
                     <i data-lucide="coins"></i>
                 </div>
@@ -329,7 +330,7 @@
             </div>
 
             <!-- Category Navigation -->
-            <div class="flex overflow-x-auto hide-scrollbar gap-2 pb-2 w-full" id="ui-store-categories">
+            <div class="flex overflow-x-auto hide-scrollbar gap-2 pb-2 w-full" id="ui-store-categories" role="group" aria-label="أقسام المتجر">
                 <button class="store-category-btn active px-4 py-2 min-h-[44px] rounded-xl text-sm font-bold transition-all bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 whitespace-nowrap flex items-center gap-2 shrink-0" aria-pressed="true" data-category="storefront">
                     <i data-lucide="sparkles" class="w-4 h-4"></i> الرئيسية
                 </button>
@@ -365,7 +366,7 @@
                 <div id="ui-store-goal" class="w-full"></div>
                 <div id="ui-store-featured" class="w-full"></div>
                 <section id="ui-store-daily-deals-container" class="rodo-study-products-section">
-                    <div class="rodo-section-heading"><div><span class="rodo-tool-kicker">اقتناء مرة واحدة · ملكية دائمة</span><h2>أدوات تستاهل رصيدك</h2><p>اختَر ميزة تساعدك فعلًا، ثم فعّلها وقت احتياجك.</p></div><span class="rodo-section-mark"><i data-lucide="sparkles"></i></span></div>
+                    <div class="rodo-section-heading"><div><span class="rodo-tool-kicker">اقتناء مرة واحدة · ملكية دائمة</span><h2>اختر الأداة المناسبة</h2><p>تملكها دائمًا، وتفعّلها وقت الحاجة.</p></div><span class="rodo-section-mark"><i data-lucide="sparkles"></i></span></div>
                     <div id="ui-store-daily-deals" class="rodo-study-products-grid w-full"></div>
                 </section>
                 <div id="ui-store-owned-preview" class="w-full"></div>
@@ -1036,6 +1037,137 @@
                 </div>
             </div>
         </section>
+
+        <section id="view-journal" class="view-section rodo-journal-view space-y-6 pb-10">
+            <div class="rodo-journal-shell">
+                <div class="rodo-journal-header">
+                    <div class="rodo-journal-heading">
+                        <span class="rodo-journal-kicker">يومياتك</span>
+                        <h2>يومياتي</h2>
+                        <p>مساحة صغيرة ليك… اكتب اللي حصل، أو اللي في دماغك.</p>
+                    </div>
+                    <button type="button" id="journal-open-composer" class="rodo-journal-primary" aria-label="كتابة يومية جديدة">
+                        <i data-lucide="plus" aria-hidden="true"></i>
+                        <span>اكتب</span>
+                    </button>
+                </div>
+
+                <div class="rodo-journal-toolbar" role="search">
+                    <label class="rodo-journal-search">
+                        <i data-lucide="search" aria-hidden="true"></i>
+                        <input id="journal-search" type="search" inputmode="search" autocomplete="off" placeholder="ابحث في يومياتك…" aria-label="البحث في يومياتك">
+                    </label>
+                    <label class="rodo-journal-filter">
+                        <i data-lucide="calendar-days" aria-hidden="true"></i>
+                        <select id="journal-date-filter" aria-label="فلترة اليوميات حسب التاريخ">
+                            <option value="all">كل التواريخ</option>
+                            <option value="today">اليوم</option>
+                            <option value="yesterday">أمس</option>
+                            <option value="7days">آخر 7 أيام</option>
+                            <option value="month">هذا الشهر</option>
+                            <option value="custom">نطاق مخصص</option>
+                        </select>
+                    </label>
+                </div>
+
+                <div id="journal-custom-range" class="rodo-journal-custom-range hidden" aria-label="النطاق الزمني المخصص">
+                    <label>
+                        <span>من</span>
+                        <input id="journal-date-from" type="date">
+                    </label>
+                    <span class="rodo-journal-range-arrow" aria-hidden="true">—</span>
+                    <label>
+                        <span>إلى</span>
+                        <input id="journal-date-to" type="date">
+                    </label>
+                </div>
+
+                <div class="rodo-journal-results-meta">
+                    <span id="journal-results-count">0 يومية</span>
+                    <button type="button" id="journal-clear-filters" class="hidden">مسح الفلاتر</button>
+                </div>
+
+                <div id="journal-list" class="rodo-journal-list" aria-live="polite"></div>
+
+                <div id="journal-empty" class="rodo-journal-empty hidden">
+                    <div class="rodo-journal-empty-icon"><i data-lucide="book-open" aria-hidden="true"></i></div>
+                    <h3>لسه مفيش يوميات هنا.</h3>
+                    <p>اكتب أول واحدة عن يومك النهارده، حتى لو مفيش حاجة كبيرة حصلت.</p>
+                    <button type="button" id="journal-empty-action" class="rodo-journal-secondary">اكتب أول يومية</button>
+                </div>
+
+                <div id="journal-no-results" class="rodo-journal-empty hidden">
+                    <div class="rodo-journal-empty-icon rodo-journal-empty-icon-muted"><i data-lucide="search-x" aria-hidden="true"></i></div>
+                    <h3>مش لاقي يومية بالكلمة دي.</h3>
+                    <p>جرّب كلمة تانية أو غيّر الفترة الزمنية.</p>
+                </div>
+            </div>
+
+            <div id="journal-composer" class="rodo-journal-composer hidden" aria-hidden="true">
+                <div class="rodo-journal-composer-backdrop" data-journal-close></div>
+                <div class="rodo-journal-composer-panel" role="dialog" aria-modal="true" aria-labelledby="journal-composer-title">
+                    <div class="rodo-journal-composer-top">
+                        <button type="button" id="journal-close-composer" class="rodo-journal-icon-button" aria-label="إغلاق">
+                            <i data-lucide="x" aria-hidden="true"></i>
+                        </button>
+                        <div>
+                            <span id="journal-composer-kicker" class="rodo-journal-kicker">يومياتي</span>
+                            <h2 id="journal-composer-title">اكتب اليوم</h2>
+                        </div>
+                        <time id="journal-composer-date" class="rodo-journal-composer-date"></time>
+                    </div>
+
+                    <form id="journal-form" class="rodo-journal-form">
+                        <label class="rodo-journal-field">
+                            <span>العنوان</span>
+                            <input id="journal-title" type="text" maxlength="120" placeholder="مثلاً: يوم طويل شوية" autocomplete="off">
+                        </label>
+                        <label class="rodo-journal-field rodo-journal-field-body">
+                            <span>ماذا حصل اليوم؟</span>
+                            <textarea id="journal-content" maxlength="12000" placeholder="النهارده…" required></textarea>
+                        </label>
+                        <div class="rodo-journal-form-footer">
+                            <span id="journal-word-count">0 كلمة</span>
+                            <button type="submit" id="journal-save-button" class="rodo-journal-save">
+                                <i data-lucide="check" aria-hidden="true"></i>
+                                <span>حفظ اليوم</span>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <div id="journal-reader" class="rodo-journal-reader hidden" aria-hidden="true">
+                <div class="rodo-journal-reader-backdrop" data-journal-close></div>
+                <div class="rodo-journal-reader-panel" role="dialog" aria-modal="true" aria-labelledby="journal-reader-title">
+                    <div class="rodo-journal-reader-top">
+                        <button type="button" id="journal-close-reader" class="rodo-journal-icon-button" aria-label="العودة إلى يومياتي">
+                            <i data-lucide="arrow-right" aria-hidden="true"></i>
+                        </button>
+                        <div class="rodo-journal-reader-actions">
+                            <button type="button" id="journal-edit-entry" class="rodo-journal-quiet-action">
+                                <i data-lucide="pencil" aria-hidden="true"></i>
+                                <span>تعديل</span>
+                            </button>
+                            <button type="button" id="journal-delete-entry" class="rodo-journal-danger-action">
+                                <i data-lucide="trash-2" aria-hidden="true"></i>
+                                <span>حذف</span>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="rodo-journal-reader-heading">
+                        <span id="journal-reader-date" class="rodo-journal-kicker"></span>
+                        <h2 id="journal-reader-title"></h2>
+                        <div id="journal-reader-meta" class="rodo-journal-reader-meta"></div>
+                    </div>
+                    <article id="journal-reader-content" class="rodo-journal-paper"></article>
+                    <div class="rodo-journal-private-note">
+                        <i data-lucide="lock-keyhole" aria-hidden="true"></i>
+                        <span>يومياتك دي ليك.</span>
+                    </div>
+                </div>
+            </div>
+        </section>
     </main>
 
     <!-- Modal Save Session -->
@@ -1436,6 +1568,10 @@
         <button onclick="switchTab('profile')" id="nav-profile" class="flex-1 min-w-[50px] min-h-[44px] py-2 px-1 rounded-xl flex flex-col items-center justify-center gap-1 transition-all text-white/50 hover:text-white">
             <i data-lucide="user" class="w-5 h-5"></i>
             <span class="text-[8px] font-bold">البروفايل</span>
+        </button>
+        <button type="button" id="nav-journal" class="flex-1 min-w-[50px] min-h-[44px] py-2 px-1 rounded-xl flex flex-col items-center justify-center gap-1 transition-all text-white/50 hover:text-white" aria-label="يومياتي">
+            <i data-lucide="notebook-pen" class="w-5 h-5"></i>
+            <span class="text-[8px] font-bold">يومياتي</span>
         </button>
     </nav>
 </body>

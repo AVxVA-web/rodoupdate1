@@ -2,6 +2,12 @@
 (function () {
     'use strict';
 
+    const FOCUS_CYCLE_MINUTES = 50;
+    const FOCUS_BREAK_MINUTES = 10;
+    const FOCUS_CYCLE_MS = FOCUS_CYCLE_MINUTES * 60 * 1000;
+    const FOCUS_BREAK_MS = FOCUS_BREAK_MINUTES * 60 * 1000;
+    const FOCUS_TOOL_ID = `study_focus_${FOCUS_CYCLE_MINUTES}_${FOCUS_BREAK_MINUTES}`;
+
     const STUDY_STORE_PRODUCTS = [
         {
             id: 'study_backlog', type: 'backlog', title: 'مفكّك التراكم',
@@ -22,9 +28,9 @@
             detail: 'لا يوجد حد عددي تفرضه الأداة على البطاقات؛ كل مادة لها مكتبتها ومراجعتها الخاصة.',
         },
         {
-            id: 'study_focus_50_10', type: 'focus', title: 'إيقاع التركيز 50 / 10',
-            subtitle: '50 دقيقة تركيز حقيقي ثم 10 دقائق راحة', cost: 120, icon: 'timer-reset',
-            desc: 'يستخدم مؤقت RODO الحالي، ويوقفه تلقائيًا بعد 50 دقيقة فعلية ثم يبدأ راحة مستقلة.',
+            id: FOCUS_TOOL_ID, type: 'focus', title: `إيقاع التركيز ${FOCUS_CYCLE_MINUTES} / ${FOCUS_BREAK_MINUTES}`,
+            subtitle: `${FOCUS_CYCLE_MINUTES} دقيقة تركيز حقيقي ثم ${FOCUS_BREAK_MINUTES} دقائق راحة`, cost: 120, icon: 'timer-reset',
+            desc: `يستخدم مؤقت RODO الحالي، ويوقفه تلقائيًا بعد ${FOCUS_CYCLE_MINUTES} دقيقة فعلية ثم يبدأ راحة مستقلة.`,
             detail: 'دقائق الراحة لا تدخل سجل مذاكرتك، والاستئناف يظل بيدك.',
         }
     ];
@@ -32,7 +38,7 @@
     const LEGACY_ID_MIGRATIONS = {
         study_template_balanced: 'study_backlog',
         study_template_exam: 'study_mastery_path',
-        study_focus_45_10: 'study_focus_50_10'
+        study_focus_45_10: FOCUS_TOOL_ID
     };
 
     const DEFAULT_STUDY_TOOLS = {
@@ -166,14 +172,28 @@
         return { granted: true, xp: finalXp, coins: finalCoins, rewardId };
     }
 
-    function revokeStudyReward(rewardId, fallbackXp = 0, fallbackCoins = 0) {
-        if (!rewardId || typeof RewardService === 'undefined') return false;
-        const revoked = RewardService.revoke(rewardId, fallbackXp, fallbackCoins);
-        if (!revoked) return false;
-        if (state.todayStats && typeof state.todayStats.xp === 'number') state.todayStats.xp = Math.max(0, state.todayStats.xp - Math.max(0, fallbackXp));
-        if (state.weeklyStats && typeof state.weeklyStats.xp === 'number') state.weeklyStats.xp = Math.max(0, state.weeklyStats.xp - Math.max(0, fallbackXp));
-        if (typeof updateHeatmap === 'function' && fallbackXp > 0) updateHeatmap(-fallbackXp);
+    function revokeStudyRewards(rewards) {
+        if (!Array.isArray(rewards) || typeof RewardService === 'undefined' || typeof RewardService.revokeBatch !== 'function') return false;
+        const requests = rewards.filter(item => item && item.rewardId).map(item => ({ id: item.rewardId, xp: item.xp, coins: item.coins }));
+        if (!requests.length) return true;
+
+        const result = RewardService.revokeBatch(requests);
+        if (!result.ok) {
+            if (result.reason === 'insufficient-balance') {
+                showToast(`لا يمكن عكس المكافأة الآن. يلزم توفر كاملها (${result.xp} XP و${result.coins} عملة)؛ لم يتغير الإنجاز أو الرصيد.`, 'info');
+            } else {
+                showToast('تعذّر التحقق من المكافأة بأمان؛ لم يتغير الإنجاز أو الرصيد. أعد تحميل التطبيق ثم حاول مجددًا.', 'info');
+            }
+            return false;
+        }
+        if (state.todayStats && typeof state.todayStats.xp === 'number') state.todayStats.xp = Math.max(0, state.todayStats.xp - result.xp);
+        if (state.weeklyStats && typeof state.weeklyStats.xp === 'number') state.weeklyStats.xp = Math.max(0, state.weeklyStats.xp - result.xp);
+        if (typeof updateHeatmap === 'function' && result.xp > 0) updateHeatmap(-result.xp);
         return true;
+    }
+
+    function revokeStudyReward(rewardId, fallbackXp = 0, fallbackCoins = 0) {
+        return revokeStudyRewards([{ rewardId, xp: fallbackXp, coins: fallbackCoins }]);
     }
 
     function renderStudyProduct(item, featured = false) {
@@ -323,7 +343,7 @@
         const item = tools.backlog.find(row => String(row.id) === String(id));
         if (!item || !isActive('study_backlog')) return;
         if (item.status === 'done') {
-            if (item.rewardId) revokeStudyReward(item.rewardId, item.earnedXp, item.earnedCoins);
+            if (item.rewardId && !revokeStudyReward(item.rewardId, item.earnedXp, item.earnedCoins)) return;
             item.status = 'queued'; item.completedAt = null; item.rewardId = null; item.earnedXp = 0; item.earnedCoins = 0;
             saveState(); renderBacklogWorkspace();
             showToast('تم إرجاع العنصر للتراكم وإلغاء مكافأته.', 'info');
@@ -345,7 +365,7 @@
         const tools = studyTools();
         const item = tools.backlog.find(row => String(row.id) === String(id));
         if (!item || !confirm(`حذف «${item.topic}» من التراكم؟`)) return;
-        if (item.status === 'done' && item.rewardId) revokeStudyReward(item.rewardId, item.earnedXp, item.earnedCoins);
+        if (item.status === 'done' && item.rewardId && !revokeStudyReward(item.rewardId, item.earnedXp, item.earnedCoins)) return;
         tools.backlog = tools.backlog.filter(row => String(row.id) !== String(id));
         saveState(); renderBacklogWorkspace();
     }
@@ -382,7 +402,7 @@
         const tools = studyTools();
         if (!tools.mastery.subject || !tools.mastery.topic) return;
         if (tools.mastery.completed[stepIndex]) {
-            revokeStudyReward(tools.mastery.stepRewardIds[stepIndex], tools.mastery.stepEarnedXp[stepIndex], tools.mastery.stepEarnedCoins[stepIndex]);
+            if (tools.mastery.stepRewardIds[stepIndex] && !revokeStudyReward(tools.mastery.stepRewardIds[stepIndex], tools.mastery.stepEarnedXp[stepIndex], tools.mastery.stepEarnedCoins[stepIndex])) return;
             tools.mastery.completed[stepIndex] = false;
             tools.mastery.stepRewardIds[stepIndex] = null;
             tools.mastery.stepEarnedXp[stepIndex] = 0;
@@ -404,11 +424,12 @@
 
     function resetMasteryRoute() {
         const tools = studyTools();
-        for (let i = 0; i < 4; i++) {
-            if (tools.mastery.stepRewardIds[i]) {
-                revokeStudyReward(tools.mastery.stepRewardIds[i], tools.mastery.stepEarnedXp[i], tools.mastery.stepEarnedCoins[i]);
-            }
-        }
+        const pendingReversals = tools.mastery.stepRewardIds.map((rewardId, index) => ({
+            rewardId,
+            xp: tools.mastery.stepEarnedXp[index],
+            coins: tools.mastery.stepEarnedCoins[index]
+        })).filter(item => item.rewardId);
+        if (!revokeStudyRewards(pendingReversals)) return;
         tools.mastery = clone(DEFAULT_STUDY_TOOLS.mastery);
         saveState(); renderMasteryWorkspace();
         showToast('تم إنهاء المسار الحالي وفتح مساحة لدرس جديد.', 'info');
@@ -636,7 +657,7 @@
         const panel = document.getElementById('ui-focus-preset');
         if (!panel) return;
         const tools = studyTools();
-        const active = tools.active.includes('study_focus_50_10');
+        const active = tools.active.includes(FOCUS_TOOL_ID);
         panel.classList.toggle('hidden', !active);
         if (!active) { clearFocusBreakInterval(); return; }
         const mode = tools.focusMode;
@@ -652,34 +673,34 @@
             const remaining = `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
             if (status) status.textContent = `استراحتك الحقيقية · ${remaining}`;
             if (action) { action.textContent = 'تخطّي الاستراحة'; action.classList.add('is-rest'); action.classList.remove('hidden'); }
-            if (progress) progress.style.width = `${Math.max(0, Math.min(100, (seconds / 600) * 100))}%`;
+            if (progress) progress.style.width = `${Math.max(0, Math.min(100, (seconds / (FOCUS_BREAK_MINUTES * 60)) * 100))}%`;
             startFocusBreakInterval();
         } else {
             const running = !!state.activeSession?.isRunning;
             const elapsed = Math.max(0, Number(state.activeSession?.elapsedMs) || 0) + (running && state.activeSession.startTime ? Date.now() - state.activeSession.startTime : 0);
             const sinceCycle = Math.max(0, elapsed - mode.cycleStartElapsedMs);
-            const seconds = Math.max(0, 3000 - Math.floor(sinceCycle / 1000));
+            const seconds = Math.max(0, (FOCUS_CYCLE_MINUTES * 60) - Math.floor(sinceCycle / 1000));
             const remaining = `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
-            if (status) status.textContent = running ? `التركيز الحقيقي · ${remaining} حتى الاستراحة` : (elapsed ? `متوقف · ${remaining} متبقية من هدف التركيز` : 'جاهز · 50 دقيقة تركيز حقيقي');
+            if (status) status.textContent = running ? `التركيز الحقيقي · ${remaining} حتى الاستراحة` : (elapsed ? `متوقف · ${remaining} متبقية من هدف التركيز` : `جاهز · ${FOCUS_CYCLE_MINUTES} دقيقة تركيز حقيقي`);
             if (action) { action.textContent = 'تخطّي الاستراحة'; action.classList.remove('is-rest'); action.classList.add('hidden'); }
-            if (progress) progress.style.width = `${Math.max(0, Math.min(100, sinceCycle / 3000000 * 100))}%`;
+            if (progress) progress.style.width = `${Math.max(0, Math.min(100, sinceCycle / FOCUS_CYCLE_MS * 100))}%`;
             clearFocusBreakInterval();
         }
     }
 
     function checkFocusPresetThreshold(totalMs) {
         const tools = studyTools();
-        if (!tools.active.includes('study_focus_50_10') || tools.focusMode.phase !== 'focus' || !state.activeSession?.isRunning) return false;
-        if (totalMs - tools.focusMode.cycleStartElapsedMs < 50 * 60 * 1000) return false;
+        if (!tools.active.includes(FOCUS_TOOL_ID) || tools.focusMode.phase !== 'focus' || !state.activeSession?.isRunning) return false;
+        if (totalMs - tools.focusMode.cycleStartElapsedMs < FOCUS_CYCLE_MS) return false;
         state.activeSession.elapsedMs = totalMs;
         state.activeSession.isRunning = false;
         state.activeSession.startTime = null;
         clearStopwatchInterval();
         tools.focusMode.phase = 'rest';
-        tools.focusMode.breakUntil = Date.now() + 10 * 60 * 1000;
+        tools.focusMode.breakUntil = Date.now() + FOCUS_BREAK_MS;
         tools.focusMode.cycleStartElapsedMs = totalMs;
         saveState(); updateStopwatchUI(true); renderFocusPreset();
-        showToast('اكتملت 50 دقيقة فعلية؛ أوقف RODO المؤقت وبدأت راحة 10 دقائق غير محتسبة.', 'success', true);
+        showToast(`اكتملت ${FOCUS_CYCLE_MINUTES} دقيقة فعلية؛ أوقف RODO المؤقت وبدأت راحة ${FOCUS_BREAK_MINUTES} دقائق غير محتسبة.`, 'success', true);
         return true;
     }
 
@@ -734,11 +755,11 @@
 
     toggleStopwatch = function () {
         const mode = studyTools().focusMode;
-        if (isActive('study_focus_50_10') && mode.phase === 'rest' && mode.breakUntil > Date.now()) {
-            showToast('استراحتك لم تنتهِ بعد. تخطّها من بطاقة 50/10 لو محتاج.', 'info'); return;
+        if (isActive(FOCUS_TOOL_ID) && mode.phase === 'rest' && mode.breakUntil > Date.now()) {
+            showToast(`استراحتك لم تنتهِ بعد. تخطّها من بطاقة ${FOCUS_CYCLE_MINUTES}/${FOCUS_BREAK_MINUTES} لو محتاج.`, 'info'); return;
         }
         const wasRunning = !!state.activeSession?.isRunning;
-        if (isActive('study_focus_50_10') && !wasRunning && mode.phase !== 'rest') {
+        if (isActive(FOCUS_TOOL_ID) && !wasRunning && mode.phase !== 'rest') {
             const elapsed = Math.max(0, Number(state.activeSession?.elapsedMs) || 0);
             if (elapsed < mode.cycleStartElapsedMs) mode.cycleStartElapsedMs = elapsed;
         }
