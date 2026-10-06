@@ -1,0 +1,9 @@
+import fs from "node:fs"; import vm from "node:vm";
+const app=fs.readFileSync(new URL("../js/app.js",import.meta.url),"utf8"); const store=fs.readFileSync(new URL("../js/store-v4.js",import.meta.url),"utf8"); const index=fs.readFileSync(new URL("../index.html",import.meta.url),"utf8"); const css=fs.readFileSync(new URL("../css/style.css",import.meta.url),"utf8"); const q=[]; const p=(n,v)=>{q.push(v);console.log(`${v?'PASS':'FAIL'} ${n}`)};
+p("store-v4 script present",index.includes("js/store-v4.js")); p("store-v4 CSS present",css.includes(".rodo-store-v4-legacy-hidden"));
+for(const x of ["feature_journal_folders","feature_advanced_stats","feature_focus_presets","feature_goal_milestones"])p(`feature ${x}`,store.includes(x));
+for(const x of ["theme_graphite","theme_paper","theme_midnight","avatar_v4_01","avatar_v4_06","title_bashmohandes","title_doctor","title_businessman"])p(`appearance catalog ${x}`,app.includes(x));
+p("V4 hides legacy surface",store.includes("rodo-store-v4-legacy-hidden")); p("legacy chest/coupon text not surfaced in V4",!store.includes("صندوق")&&!store.includes("قسيمة")&&!store.includes("شظايا"));
+p("feature ownership separates owned and active",store.includes("v4Features")&&store.includes("f.owned")&&store.includes("f.active")); p("feature purchase uses existing transaction authority",store.includes("executeStoreTransaction")); p("appearance purchase uses core authority",store.includes("buyStoreItem(id)")); p("appearance activation uses core authority",store.includes("activateStoreItem(id)")&&store.includes("deactivateStoreItem(id)"));
+let syntax=true; try{new vm.Script(app)}catch(e){syntax=false}; p("app.js syntax",syntax); syntax=true; try{new vm.Script(store)}catch(e){syntax=false}; p("store-v4.js syntax",syntax);
+process.exit(q.every(Boolean)?0:1);

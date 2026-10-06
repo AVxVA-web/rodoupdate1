@@ -205,7 +205,7 @@
         const status = owned ? (active ? 'مفعّلة الآن' : 'في مكتبتك') : 'ميزة دائمة · مرة واحدة';
         const action = owned
             ? `<button type="button" class="rodo-tool-button is-owned" onclick="setStoreCategory('tools')">${active ? 'افتح الأداة' : 'إدارة الأداة'}</button>`
-            : `<button type="button" class="rodo-tool-button ${canAfford ? 'is-buy' : 'is-short'}" ${canAfford ? '' : 'disabled'} onclick="buyStudyStoreProduct('${esc(item.id)}')">${canAfford ? `اقتناء · ${item.cost} عملة` : `ينقصك ${item.cost - Number(state.coins)} عملة`}</button>`;
+            : `<button type="button" class="rodo-tool-button is-view" onclick="openStoreProductDetail('${esc(item.id)}')">عرض المنتج</button>`;
         return `<article class="rodo-tool-product ${featured ? 'is-featured' : ''} ${owned ? 'is-owned' : ''}">
             <div class="rodo-tool-card-head">${visual}<span class="rodo-tool-status ${active ? 'is-active' : ''}">${status}</span></div>
             <div class="rodo-tool-card-copy"><span class="rodo-tool-kicker">${esc(item.subtitle)}</span><h3>${esc(item.title)}</h3><p>${esc(item.desc)}</p></div>
@@ -231,7 +231,7 @@
             }
         }
         const featured = STUDY_STORE_PRODUCTS.find(item => !tools.owned.includes(item.id)) || STUDY_STORE_PRODUCTS[0];
-        featuredBox.innerHTML = `<div class="rodo-tool-hero"><div class="rodo-tool-hero-copy"><span class="rodo-tool-kicker"><i data-lucide="sparkles"></i> RODO STUDY ATELIER</span><h2>أدوات أقل.<br><em>مذاكرة أوضح.</em></h2><p>بدل جداول طويلة وقوالب جامدة، اختر أدوات صغيرة لها وظيفة واضحة: فكّ التراكم، إتقان درس، استرجاع نشط، أو إيقاع 50/10.</p><div class="rodo-tool-hero-pills"><span><i data-lucide="infinity"></i> بطاقات بلا حد داخل التطبيق</span><span><i data-lucide="sliders-horizontal"></i> تعمل وقت احتياجك</span><span><i data-lucide="shield-check"></i> بدون دقائق أو درجات مصطنعة</span></div></div><div class="rodo-tool-hero-art" aria-hidden="true"><span class="rodo-hero-ring ring-one"></span><span class="rodo-hero-ring ring-two"></span><div class="rodo-hero-book"><i data-lucide="orbit"></i><span>RODO<br>ATELIER</span></div><i data-lucide="sparkles" class="rodo-hero-spark spark-a"></i><i data-lucide="sparkles" class="rodo-hero-spark spark-b"></i></div><div class="rodo-tool-hero-bottom"><span>المقترح الآن</span><strong>${esc(featured.title)}</strong><button type="button" class="rodo-tool-button is-buy" onclick="${tools.owned.includes(featured.id) ? 'setStoreCategory(\'tools\')' : `buyStudyStoreProduct('${esc(featured.id)}')`}">${tools.owned.includes(featured.id) ? 'افتح أدواتي' : `اقتناء · ${featured.cost} عملة`}</button></div></div>`;
+        featuredBox.innerHTML = `<div class="rodo-tool-hero"><div class="rodo-tool-hero-copy"><span class="rodo-tool-kicker"><i data-lucide="sparkles"></i> RODO STORE · STUDY ATELIER</span><h2>اختار اللي يناسبك.<br><em>وأكمل من هناك.</em></h2><p>أدوات صغيرة لوظائف واضحة: فكّ التراكم، إتقان درس، استرجاع نشط، أو إيقاع 50/10. لا تحتاج تشتري أكثر مما تحتاج.</p><div class="rodo-tool-hero-pills"><span><i data-lucide="infinity"></i> ملكية دائمة</span><span><i data-lucide="sliders-horizontal"></i> تعمل وقت احتياجك</span><span><i data-lucide="shield-check"></i> بلا دقائق أو درجات مصطنعة</span></div></div><div class="rodo-tool-hero-art" aria-hidden="true"><span class="rodo-hero-ring ring-one"></span><span class="rodo-hero-ring ring-two"></span><div class="rodo-hero-book"><i data-lucide="orbit"></i><span>RODO<br>STORE</span></div><i data-lucide="sparkles" class="rodo-hero-spark spark-a"></i><i data-lucide="sparkles" class="rodo-hero-spark spark-b"></i></div><div class="rodo-tool-hero-bottom"><span>مقترح الآن</span><strong>${esc(featured.title)}</strong><button type="button" class="rodo-tool-button ${tools.owned.includes(featured.id) ? 'is-owned' : 'is-view'}" onclick="${tools.owned.includes(featured.id) ? 'setStoreCategory(\'tools\')' : `openStoreProductDetail('${esc(featured.id)}')`}">${tools.owned.includes(featured.id) ? 'افتح أدواتي' : 'عرض المنتج'}</button></div></div>`;
         grid.innerHTML = STUDY_STORE_PRODUCTS.map(item => renderStudyProduct(item)).join('');
         const ownedPreview = document.getElementById('ui-store-owned-preview');
         if (ownedPreview) {
@@ -786,6 +786,7 @@
         renderFocusPreset();
     };
 
+    window.RODO_STUDY_STORE_PRODUCTS = STUDY_STORE_PRODUCTS;
     window.buyStudyStoreProduct = buyStudyStoreProduct;
     window.toggleStudyFeature = toggleStudyFeature;
     window.addBacklogItem = addBacklogItem;

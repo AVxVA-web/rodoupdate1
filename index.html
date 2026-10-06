@@ -15,7 +15,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Alexandria:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="css/style.css?v=20261004-journal-v2">
+    <link rel="stylesheet" href="css/style.css?v=20261004-store-v3">
     
     <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
     <link rel="preconnect" href="https://cdn.tailwindcss.com" crossorigin>
@@ -33,6 +33,9 @@
     <script src="js/app.js?v=20261004-journal-v1" defer></script>
     <script src="js/journal.js?v=20261004-journal-v2" defer></script>
     <script src="js/store-tools.js?v=20261003-atelier-v4" defer></script>
+    <script src="js/store-experience.js?v=20261004-store-v3" defer></script>
+    <script src="js/store-v4.js?v=20261006-store-v4" defer></script>
+    <script src="js/premium-features.js?v=20261006-premium-features-v1" defer></script>
 
     <div class="ambient-glow bg-blue-600/30 w-[80vw] h-[60vw] top-[-10%] left-[-10%] md:w-[40vw] md:h-[40vw]"></div>
     <div class="ambient-glow bg-purple-600/20 w-[70vw] h-[70vw] bottom-[10%] right-[-20%] md:w-[30vw] md:h-[30vw]"></div>
@@ -322,8 +325,8 @@
             <div class="rodo-store-topbar">
                 <div class="rodo-store-topbar-copy">
                     <span class="rodo-store-overline"><span class="rodo-live-dot"></span> RODO · STUDY ATELIER</span>
-                    <h2>أدواتك الدراسية، في مكان واحد.</h2>
-                    <p>اقتناء دائم لأدوات عملية؛ فعّل ما تحتاجه، وأوقفه متى شئت، مع بقاء بياناتك محفوظة.</p>
+                    <h2>اختار اللي يناسبك.</h2>
+                    <p>أدوات عملية، تخصيصات، ومكافآت اختيارية؛ اقتني ما تحتاجه وخلي الباقي على جنب.</p>
                 </div>
                 <div class="rodo-store-balance">
                     <span>رصيدك · عملة داخل التطبيق</span>
@@ -381,7 +384,7 @@
                 <div id="ui-store-goal" class="w-full"></div>
                 <div id="ui-store-featured" class="w-full"></div>
                 <section id="ui-store-daily-deals-container" class="rodo-study-products-section">
-                    <div class="rodo-section-heading"><div><span class="rodo-tool-kicker">اقتناء مرة واحدة · ملكية دائمة</span><h2>اختر الأداة المناسبة</h2><p>تملكها دائمًا، وتفعّلها وقت الحاجة.</p></div><span class="rodo-section-mark"><i data-lucide="sparkles"></i></span></div>
+                    <div class="rodo-section-heading"><div><span class="rodo-tool-kicker">مقتنيات المتجر</span><h2>مختارات من المتجر</h2><p>أدوات واضحة الوظيفة؛ اقتني اللي تحتاجه وسيظل عندك.</p></div><span class="rodo-section-mark"><i data-lucide="sparkles"></i></span></div>
                     <div id="ui-store-daily-deals" class="rodo-study-products-grid w-full"></div>
                 </section>
                 <div id="ui-store-owned-preview" class="w-full"></div>
@@ -1185,7 +1188,7 @@
                             </button>
                         </div>
                     </div>
-                    <div class="rodo-journal-reader-heading">
+                    <div id="journal-reader-heading" class="rodo-journal-reader-heading">
                         <span id="journal-reader-date" class="rodo-journal-kicker"></span>
                         <h2 id="journal-reader-title"></h2>
                         <div id="journal-reader-meta" class="rodo-journal-reader-meta"></div>
@@ -1547,6 +1550,48 @@
 
             <div class="w-full mt-auto pt-2" id="studio-avatar-action-container">
                 <!-- Injected via JS -->
+            </div>
+        </div>
+    </div>
+
+
+    <!-- Store Product Detail / Purchase Sheet V3 -->
+    <div id="store-product-detail-modal" class="rodo-store-detail-modal fixed inset-0 z-[9998] hidden items-end sm:items-center justify-center p-0 sm:p-4" aria-hidden="true">
+        <div class="rodo-store-detail-sheet" role="dialog" aria-modal="true" aria-labelledby="store-detail-title">
+            <button type="button" class="rodo-store-detail-close" onclick="closeStoreProductDetail()" aria-label="إغلاق"><i data-lucide="x"></i></button>
+            <div id="store-detail-view" class="rodo-store-detail-view">
+                <div class="rodo-store-detail-top">
+                    <div id="store-detail-art" class="rodo-store-detail-art" aria-hidden="true"></div>
+                    <div class="rodo-store-detail-head-copy">
+                        <span id="store-detail-status" class="rodo-store-detail-status">عنصر من المتجر</span>
+                        <span id="store-detail-kicker" class="rodo-store-detail-kicker">متجر RODO</span>
+                        <h3 id="store-detail-title">العنصر</h3>
+                    </div>
+                </div>
+                <p id="store-detail-desc" class="rodo-store-detail-desc"></p>
+                <div id="store-detail-truth" class="rodo-store-detail-truth"></div>
+                <div class="rodo-store-detail-price-row">
+                    <div><span>السعر</span><strong id="store-detail-price">0 <small>عملة</small></strong></div>
+                    <div><span>رصيدك الآن</span><b id="store-detail-balance">0</b></div>
+                </div>
+                <div class="rodo-store-detail-actions">
+                    <button type="button" id="store-detail-action" class="rodo-store-detail-action is-primary">اقتناء</button>
+                    <button type="button" id="store-detail-secondary" class="rodo-store-detail-secondary">إغلاق</button>
+                </div>
+            </div>
+            <div id="store-detail-confirm" class="rodo-store-detail-confirm hidden">
+                <span class="rodo-store-detail-kicker">تأكيد بسيط قبل الخصم</span>
+                <h3 id="store-detail-confirm-title">اقتناء العنصر؟</h3>
+                <p id="store-detail-confirm-copy">سيُخصم المبلغ من رصيدك الحالي.</p>
+                <div class="rodo-store-detail-confirm-ledger">
+                    <div><span>الرصيد الحالي</span><strong id="store-detail-confirm-balance">—</strong></div>
+                    <span class="rodo-store-detail-arrow">←</span>
+                    <div><span>بعد الاقتناء</span><strong id="store-detail-balance-after">—</strong></div>
+                </div>
+                <div class="rodo-store-detail-actions">
+                    <button type="button" id="store-detail-confirm-action" class="rodo-store-detail-action is-primary" onclick="confirmStoreProductPurchase()">تأكيد الاقتناء</button>
+                    <button type="button" id="store-detail-confirm-secondary" class="rodo-store-detail-secondary" onclick="closeStoreProductDetail()">إلغاء</button>
+                </div>
             </div>
         </div>
     </div>

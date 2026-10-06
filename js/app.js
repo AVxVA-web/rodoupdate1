@@ -81,7 +81,20 @@ const STORE_CATALOG = [
     { id: 'boost_focus_deep', title: 'إكسير التركيز العميق (قديم)', desc: 'عنصر قديم محفوظ؛ أُوقف لأن مضاعفة الدقائق تزيّف مدة الجلسة المسجلة.', cost: 60, category: 'boosts', icon: 'flame', rarity: 'rare', type: 'boost', boostType: 'focus', multiplier: 2, duration: 2 * 60 * 60 * 1000, retired: true, retiredReason: 'كان هذا العنصر يضاعف دقائق الجلسة؛ أُوقف لحماية دقة وقت التركيز، وبقي محفوظًا في خزانة حسابك.' },
     { id: 'title_common_1', title: 'لقب: مبتدئ', desc: 'لقب بسيط يعبر عن بداية طريقك.', cost: 100, category: 'titles', icon: 'award', rarity: 'common', type: 'title', label: 'مبتدئ' },
     { id: 'title_common_2', title: 'لقب: مجتهد', desc: 'لقب يثبت جديتك وعزمك.', cost: 200, category: 'titles', icon: 'award', rarity: 'common', type: 'title', label: 'مجتهد' },
-    { id: 'theme_common_1', title: 'رمادي هادئ', desc: 'مظهر هادئ مريح للعين أثناء المذاكرة.', cost: 200, category: 'themes', icon: 'palette', rarity: 'common', type: 'theme' }
+    { id: 'theme_common_1', title: 'رمادي هادئ', desc: 'مظهر هادئ مريح للعين أثناء المذاكرة.', cost: 200, category: 'themes', icon: 'palette', rarity: 'common', type: 'theme' },
+    { id: 'theme_graphite', title: 'Graphite', desc: 'واجهة هادئة بطابع هندسي: تباين محسوب، أسطح أعمق، ولمسات صلبة بدون ضوضاء.', cost: 900, category: 'themes', icon: 'layers-3', rarity: 'rare', type: 'theme', storeV4: true, themeCode: 'graphite', trait: 'تباين أوضح لمساحات العمل والتركيز.' },
+    { id: 'theme_paper', title: 'Paper', desc: 'جو دافئ يشبه دفترًا نظيفًا: أهدأ في القراءة، وأقرب للملاحظات والكتابة.', cost: 1200, category: 'themes', icon: 'notebook-pen', rarity: 'rare', type: 'theme', storeV4: true, themeCode: 'paper', trait: 'أسطح قراءة أدفأ للنصوص والملاحظات.' },
+    { id: 'theme_midnight', title: 'Midnight', desc: 'هوية ليلية عميقة بلمسة زرقاء هادئة، مصممة لتظل أنيقة في الاستخدام الطويل.', cost: 1500, category: 'themes', icon: 'moon-star', rarity: 'epic', type: 'theme', storeV4: true, themeCode: 'midnight', trait: 'هوية ليلية أعمق بلمسة هادئة للعين.' },
+    { id: 'title_bashmohandes', title: 'بشمهندس', desc: 'لقب بسيط يظهر بجانب اسمك.', cost: 700, category: 'titles', icon: 'hard-hat', rarity: 'rare', type: 'title', label: 'بشمهندس', storeV4: true },
+    { id: 'title_doctor', title: 'دكتور', desc: 'لقب بسيط يظهر بجانب اسمك.', cost: 900, category: 'titles', icon: 'stethoscope', rarity: 'epic', type: 'title', label: 'دكتور', storeV4: true },
+    { id: 'title_businessman', title: 'رجل الأعمال', desc: 'لقب بسيط يظهر بجانب اسمك.', cost: 1200, category: 'titles', icon: 'briefcase-business', rarity: 'epic', type: 'title', label: 'رجل الأعمال', storeV4: true },
+    { id: 'avatar_v4_01', title: 'أفاتار 01 · Classic', desc: 'بسيط ومرتب، بطابع يومي واضح.', cost: 600, category: 'avatars', icon: 'user-round', rarity: 'rare', type: 'avatar', avatarId: 13, storeV4: true },
+    { id: 'avatar_v4_02', title: 'أفاتار 02 · Academic', desc: 'تفاصيل أكاديمية هادئة بدون مبالغة.', cost: 800, category: 'avatars', icon: 'book-open', rarity: 'rare', type: 'avatar', avatarId: 14, storeV4: true },
+    { id: 'avatar_v4_03', title: 'أفاتار 03 · Night', desc: 'ملامح داكنة وسيلويت أكثر حدة.', cost: 1000, category: 'avatars', icon: 'moon', rarity: 'epic', type: 'avatar', avatarId: 15, storeV4: true },
+    { id: 'avatar_v4_04', title: 'أفاتار 04 · Minimal', desc: 'أبسط هوية في المجموعة، أقرب للـmonochrome.', cost: 1100, category: 'avatars', icon: 'circle-user-round', rarity: 'epic', type: 'avatar', avatarId: 16, storeV4: true },
+    { id: 'avatar_v4_05', title: 'أفاتار 05 · Technical', desc: 'طابع تقني واضح في الملابس والخطوط.', cost: 1350, category: 'avatars', icon: 'cpu', rarity: 'epic', type: 'avatar', avatarId: 17, storeV4: true },
+    { id: 'avatar_v4_06', title: 'أفاتار 06 · Formal', desc: 'مظهر رسمي ونظيف، من غير استعراض.', cost: 1600, category: 'avatars', icon: 'briefcase', rarity: 'epic', type: 'avatar', avatarId: 18, storeV4: true },
+
 ];
 
 const STORE_PERMANENT_TYPES = new Set(['theme', 'title', 'avatar', 'effect']);
@@ -141,7 +154,13 @@ const AVATARS_DATA = [
     { id: 9, reqLvl: 999, reqItem: 'avatar_premium_1', type: 'legendary', gender: 'male', svg: `<svg viewBox="0 0 100 100" class="w-full h-full"><rect width="100" height="100" fill="#1e1b4b"/><circle cx="50" cy="65" r="28" fill="#c4b5fd"/><path d="M20 90 C20 40 80 40 80 90 Z" fill="#0f172a"/><path d="M35 30 L50 10 L65 30 Z" fill="#8b5cf6"/><circle cx="35" cy="55" r="8" fill="#fde047"/><circle cx="65" cy="55" r="8" fill="#fde047"/></svg>` },
     { id: 10, reqLvl: 999, reqItem: 'avatar_premium_2', type: 'epic', gender: 'female', svg: `<svg viewBox="0 0 100 100" class="w-full h-full"><rect width="100" height="100" fill="#0891b2"/><circle cx="50" cy="60" r="25" fill="#fbcfe8"/><path d="M25 90 Q50 40 75 90 Z" fill="#164e63"/><path d="M30 40 Q50 20 70 40 Z" fill="#c026d3"/><circle cx="40" cy="55" r="4" fill="#000"/><circle cx="60" cy="55" r="4" fill="#000"/></svg>` },
     { id: 11, reqLvl: 999, reqItem: 'avatar_premium_3', type: 'legendary', gender: 'male', svg: `<svg viewBox="0 0 100 100" class="w-full h-full"><rect width="100" height="100" fill="#b45309"/><circle cx="50" cy="55" r="25" fill="#ffedd5"/><path d="M20 100 Q50 30 80 100 Z" fill="#78350f"/><rect x="35" y="20" width="30" height="15" fill="#1e3a8a"/><rect x="30" y="35" width="40" height="5" fill="#1e3a8a"/><circle cx="40" cy="50" r="3" fill="#000"/><circle cx="60" cy="50" r="3" fill="#000"/><path d="M40 70 Q50 85 60 70 Z" fill="#d97706"/></svg>` },
-    { id: 12, reqLvl: 999, reqItem: 'avatar_premium_4', type: 'mythic', gender: 'female', svg: `<svg viewBox="0 0 100 100" class="w-full h-full"><rect width="100" height="100" fill="#e11d48"/><circle cx="50" cy="60" r="24" fill="#ffe4e6"/><path d="M15 100 Q50 40 85 100 Z" fill="#4c0519"/><path d="M20 50 Q50 0 80 50 Z" fill="#fbbf24"/><circle cx="50" cy="20" r="8" fill="#ef4444"/><circle cx="38" cy="55" r="4" fill="#000"/><circle cx="62" cy="55" r="4" fill="#000"/></svg>` }
+    { id: 12, reqLvl: 999, reqItem: 'avatar_premium_4', type: 'mythic', gender: 'female', svg: `<svg viewBox="0 0 100 100" class="w-full h-full"><rect width="100" height="100" fill="#e11d48"/><circle cx="50" cy="60" r="24" fill="#ffe4e6"/><path d="M15 100 Q50 40 85 100 Z" fill="#4c0519"/><path d="M20 50 Q50 0 80 50 Z" fill="#fbbf24"/><circle cx="50" cy="20" r="8" fill="#ef4444"/><circle cx="38" cy="55" r="4" fill="#000"/><circle cx="62" cy="55" r="4" fill="#000"/></svg>` },
+    { id: 13, reqLvl: 999, reqItem: 'avatar_v4_01', type: 'rare', gender: 'male', svg: `<svg viewBox=\"0 0 100 100\" class=\"w-full h-full\"><rect width=\"100\" height=\"100\" fill=\"#20242a\"/><circle cx=\"50\" cy=\"62\" r=\"28\" fill=\"#d6a57a\"/><path d=\"M22 56 Q26 20 50 18 Q74 20 78 56 L70 46 Q50 34 30 46 Z\" fill=\"#17191d\"/><path d=\"M20 90 Q24 70 50 68 Q76 70 80 90 Z\" fill=\"#0e1013\"/><path d=\"M38 60 Q50 67 62 60\" stroke=\"#a06b48\" stroke-width=\"3\" fill=\"none\"/></svg>` },
+    { id: 14, reqLvl: 999, reqItem: 'avatar_v4_02', type: 'rare', gender: 'female', svg: `<svg viewBox=\"0 0 100 100\" class=\"w-full h-full\"><rect width=\"100\" height=\"100\" fill=\"#d5d0c6\"/><path d=\"M18 86 C20 34 80 34 82 86 Z\" fill=\"#6f5a45\"/><circle cx=\"50\" cy=\"61\" r=\"27\" fill=\"#f0c2a0\"/><path d=\"M24 53 Q32 17 50 17 Q68 17 76 53 Q61 41 50 42 Q39 41 24 53 Z\" fill=\"#493a31\"/><path d=\"M35 74 Q50 82 65 74\" stroke=\"#c1846a\" stroke-width=\"3\" fill=\"none\"/><path d=\"M30 86 L70 86\" stroke=\"#8f7c61\" stroke-width=\"5\"/></svg>` },
+    { id: 15, reqLvl: 999, reqItem: 'avatar_v4_03', type: 'epic', gender: 'male', svg: `<svg viewBox=\"0 0 100 100\" class=\"w-full h-full\"><rect width=\"100\" height=\"100\" fill=\"#111827\"/><circle cx=\"50\" cy=\"60\" r=\"28\" fill=\"#b98b67\"/><path d=\"M19 60 Q24 16 50 16 Q76 16 81 60 L67 48 Q50 38 33 48 Z\" fill=\"#050608\"/><path d=\"M20 94 Q27 66 50 66 Q73 66 80 94 Z\" fill=\"#0b1220\"/><path d=\"M35 68 L65 68\" stroke=\"#64748b\" stroke-width=\"3\"/><path d=\"M27 84 L73 84\" stroke=\"#334155\" stroke-width=\"4\"/></svg>` },
+    { id: 16, reqLvl: 999, reqItem: 'avatar_v4_04', type: 'epic', gender: 'female', svg: `<svg viewBox=\"0 0 100 100\" class=\"w-full h-full\"><rect width=\"100\" height=\"100\" fill=\"#e9e5de\"/><circle cx=\"50\" cy=\"61\" r=\"27\" fill=\"#efc7aa\"/><path d=\"M25 51 Q28 18 50 18 Q72 18 75 51 Q63 40 50 41 Q37 40 25 51 Z\" fill=\"#c9c0b4\"/><path d=\"M22 92 Q26 69 50 68 Q74 69 78 92 Z\" fill=\"#f6f4ef\"/><path d=\"M38 76 Q50 81 62 76\" stroke=\"#c08e7b\" stroke-width=\"3\" fill=\"none\"/></svg>` },
+    { id: 17, reqLvl: 999, reqItem: 'avatar_v4_05', type: 'epic', gender: 'male', svg: `<svg viewBox=\"0 0 100 100\" class=\"w-full h-full\"><rect width=\"100\" height=\"100\" fill=\"#0b1020\"/><circle cx=\"50\" cy=\"60\" r=\"27\" fill=\"#c89b72\"/><path d=\"M21 53 Q26 19 50 19 Q74 19 79 53 L64 43 Q50 35 36 43 Z\" fill=\"#18253a\"/><path d=\"M22 92 Q28 67 50 67 Q72 67 78 92 Z\" fill=\"#15253b\"/><path d=\"M34 70 L66 70\" stroke=\"#4f8abf\" stroke-width=\"4\"/><rect x=\"42\" y=\"77\" width=\"16\" height=\"6\" rx=\"3\" fill=\"#67a3d8\"/></svg>` },
+    { id: 18, reqLvl: 999, reqItem: 'avatar_v4_06', type: 'epic', gender: 'female', svg: `<svg viewBox=\"0 0 100 100\" class=\"w-full h-full\"><rect width=\"100\" height=\"100\" fill=\"#d8dee8\"/><circle cx=\"50\" cy=\"61\" r=\"27\" fill=\"#e9bf9f\"/><path d=\"M23 53 Q27 17 50 17 Q73 17 77 53 Q63 40 50 41 Q37 40 23 53 Z\" fill=\"#5b463c\"/><path d=\"M21 92 Q26 68 50 67 Q74 68 79 92 Z\" fill=\"#eef1f5\"/><path d=\"M34 73 Q50 80 66 73\" stroke=\"#a06e5d\" stroke-width=\"3\" fill=\"none\"/><path d=\"M29 84 L71 84\" stroke=\"#b7c0cc\" stroke-width=\"4\"/></svg>` },
 ];
 
 const DEFAULT_HABITS = [
@@ -431,6 +450,8 @@ const FOCUS_GOAL_REWARDS = [
     { minutes: 180, coins: 330, xp: 165 },
     { minutes: 210, coins: 390, xp: 195 },
     { minutes: 240, coins: 450, xp: 225 }
+
+
 ];
 
 function normalizeFocusGoalMinutes(value) {
@@ -2298,11 +2319,13 @@ function renderGoals() {
 
     if (state.goals.length === 0) {
         container.innerHTML = `<div class="glass-panel rounded-3xl p-8 text-center opacity-70 border-dashed border-2 border-white/10 mt-4"><p class="text-sm text-white/70">لا توجد مهام كبرى حالياً. أضف الامتحانات أو المشاريع الكبيرة هنا.</p></div>`;
+        window.RODOPremiumFeatures?.onGoalsRendered?.();
         return;
     }
+    const milestonesEnabled = window.RODOPremiumFeatures?.isActive?.(window.RODOPremiumFeatures.FEATURE.GOAL_MILESTONES);
     container.innerHTML = state.goals.map(goal => {
-        return `
-        <div onclick="toggleBigQuest(${goal.id})" tabindex="0" role="button" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault(); this.click();}" class="group glass-panel p-4 min-h-[44px] rounded-2xl flex items-center justify-between cursor-pointer transition-all btn-press border ${goal.completed ? 'border-purple-500/50 bg-purple-500/10' : 'border-white/10 hover:bg-white/[0.03]'}">
+        const goalCard = `
+        <div data-rodo-goal-id="${goal.id}" onclick="toggleBigQuest(${goal.id})" tabindex="0" role="button" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault(); this.click();}" class="group glass-panel p-4 min-h-[44px] rounded-2xl flex items-center justify-between cursor-pointer transition-all btn-press border ${goal.completed ? 'border-purple-500/50 bg-purple-500/10' : 'border-white/10 hover:bg-white/[0.03]'}">
             <div class="flex items-center gap-3 flex-1 overflow-hidden">
                 <div class="w-7 h-7 rounded-full border-2 flex items-center justify-center shrink-0 ${goal.completed ? 'bg-purple-500 border-purple-500' : 'border-white/20'}">
                     ${goal.completed ? '<i data-lucide="star" class="w-4 h-4 text-white"></i>' : '<i data-lucide="target" class="w-4 h-4 text-white/40"></i>'}
@@ -2314,8 +2337,11 @@ function renderGoals() {
             </div>
             <button onclick="deleteBigQuest(${goal.id}, event)" aria-label="حذف المهمة الكبرى" class="w-11 h-11 flex items-center justify-center hover:bg-red-500/20 text-white/20 hover:text-red-400 rounded-xl transition-colors shrink-0"><i data-lucide="trash-2" class="w-5 h-5"></i></button>
         </div>`;
+        const premium = milestonesEnabled ? (window.RODOPremiumFeatures?.renderGoalMilestones?.(goal) || '') : '';
+        return premium ? `<div class="rodo-goal-premium-wrap">${goalCard}${premium}</div>` : goalCard;
     }).join('');
     lucide.createIcons({ root: container });
+    window.RODOPremiumFeatures?.onGoalsRendered?.();
 }
 
 function updateUserName(newName) {
@@ -2801,6 +2827,7 @@ function openFocusStartModal() {
     const custom = document.getElementById('focus-custom-goal');
     if (custom) custom.value = '';
     renderFocusStartSubjects();
+    window.RODOPremiumFeatures?.onFocusStartReady?.();
     modal.classList.remove('hidden'); modal.style.display='flex';
     setTimeout(() => {
         modal.classList.remove('opacity-0'); modal.classList.add('modal-overlay-enter');
@@ -2842,6 +2869,7 @@ function selectFocusStartSubject(subjectId) {
     if (helper) helper.textContent = `مادة الجلسة: ${subject.name}. والهدف اختياري تمامًا.`;
     if (startBtn) startBtn.disabled = false;
     updateFocusGoalRewardPreview();
+    window.RODOPremiumFeatures?.onFocusStartStateChanged?.();
 }
 
 function updateFocusGoalRewardPreview() {
@@ -2864,6 +2892,7 @@ function selectFocusGoal(goalValue) {
     const custom = document.getElementById('focus-custom-goal');
     if (custom && String(goalValue) !== '-1') custom.value = '';
     updateFocusGoalRewardPreview();
+    window.RODOPremiumFeatures?.onFocusStartStateChanged?.();
 }
 
 function startConfiguredFocusSession() {
@@ -3736,7 +3765,7 @@ function renderStoreGrid() {
                 ? `<button type="button" class="rodo-store-button is-muted" onclick="deactivateStoreItem('${escapeHTML(item.id)}')">إلغاء التفعيل</button>`
                 : `<button type="button" class="rodo-store-button is-outline" onclick="activateStoreItem('${escapeHTML(item.id)}')">تفعيل</button>`;
         } else {
-            action = `<button type="button" class="rodo-store-button ${canAfford ? 'is-gold' : 'is-disabled'}" ${canAfford ? '' : 'disabled aria-disabled="true"'} onclick="buyStoreItem('${escapeHTML(item.id)}')">${canAfford ? `شراء · ${item.cost} عملة` : `ينقصك ${item.cost - state.coins} عملة`}</button>`;
+            action = `<button type="button" class="rodo-store-button is-outline rodo-store-detail-trigger" onclick="openStoreProductDetail('${escapeHTML(item.id)}')">عرض المنتج</button>`;
         }
         const goal = permanent && !owned ? `<button type="button" class="rodo-store-quiet-button" onclick="setStoreGoal('${escapeHTML(item.id)}')">${state.store.goalItemId === item.id ? 'هدفك الحالي' : 'اجعله هدفي'}</button>` : '';
         const badge = active ? 'مفعّل الآن' : (owned ? 'في خزانتك' : (permanent ? 'تخصيص' : (item.type === 'mystery' ? 'صندوق اختياري' : 'نقاط لعبة')));
@@ -4119,6 +4148,7 @@ function renderStats() {
 
     renderRecentSessions();
     renderErrorAnalytics();
+    window.RODOPremiumFeatures?.onStatsRendered?.();
 }
 
 function renderProductivityChart() {

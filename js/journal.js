@@ -111,7 +111,8 @@
         rawQuery: String(refs.search?.value || '').trim(),
         dateFilter: refs.dateFilter?.value || 'all',
         from: refs.dateFrom?.value || '',
-        to: refs.dateTo?.value || ''
+        to: refs.dateTo?.value || '',
+        folderId: window.RODOPremiumFeatures?.isActive?.(window.RODOPremiumFeatures.FEATURE.JOURNAL_FOLDERS) ? (document.getElementById('journal-folder-filter')?.value || 'all') : 'all'
     });
 
     const matchesDateFilter = (entry, filter) => {
@@ -204,6 +205,7 @@
     const getFilteredEntries = () => {
         const filter = getActiveFilters();
         return getJournals()
+            .filter(entry => filter.folderId === 'all' || String(entry.folderId || '') === String(filter.folderId))
             .filter(entry => matchesDateFilter(entry, filter))
             .map(entry => ({ entry, score: getSearchScore(entry, filter) }))
             .filter(item => !filter.query || item.score > 0)
@@ -216,7 +218,7 @@
 
     const hasActiveFilters = () => {
         const filter = getActiveFilters();
-        return Boolean(filter.query || filter.dateFilter !== 'all' || filter.from || filter.to);
+        return Boolean(filter.query || filter.dateFilter !== 'all' || filter.from || filter.to || filter.folderId !== 'all');
     };
 
     const getDraft = () => {
@@ -320,6 +322,7 @@
         const date = formatDate(entry.dateKey, { day: 'numeric', month: 'long', year: 'numeric' });
         const preview = makeSmartPreview(entry.content, filter);
         const pinned = Boolean(entry.isPinned);
+        const premiumFolderAddon = window.RODOPremiumFeatures?.journalCardAddon?.(entry) || '';
         return `
             <article class="rodo-journal-card ${pinned ? 'is-pinned' : ''}" data-journal-id="${escape(entry.id)}">
                 <button type="button" class="rodo-journal-card-button" data-journal-open="${escape(entry.id)}" aria-label="فتح يومية ${escape(titleText)}">
@@ -327,6 +330,7 @@
                         <div class="rodo-journal-card-copy">
                             <h3>${title}</h3>
                             <time datetime="${escape(entry.dateKey)}">${escape(date)}</time>
+                            ${premiumFolderAddon}
                         </div>
                         <span class="rodo-journal-card-mark" aria-hidden="true"><i data-lucide="notebook-pen"></i></span>
                     </div>
@@ -420,6 +424,7 @@
         const noResults = !noEntries && matches.length === 0;
         setHidden(refs.empty, !noEntries);
         setHidden(refs.noResults, !noResults);
+        window.RODOPremiumFeatures?.onJournalRendered?.();
     };
 
     const findEntry = (id) => getJournals().find(entry => String(entry.id) === String(id));
@@ -464,6 +469,7 @@
         refs.readerPinButton?.classList.toggle('is-active', Boolean(entry.isPinned));
         if (refs.readerPinLabel) refs.readerPinLabel.textContent = entry.isPinned ? 'مثبتة' : 'تثبيت';
         setPanelVisible(refs.reader, true);
+        window.RODOPremiumFeatures?.onJournalReaderOpen?.(entry);
         requestAnimationFrame(() => refs.closeReader?.focus());
     };
 
@@ -553,6 +559,7 @@
             closeComposer({ preserveDraft: false });
             render();
             openReader(entry);
+            window.RODOPremiumFeatures?.onJournalSaved?.(entry, { isNew: false });
             toast('اتحفظت التعديلات.', 'success');
             return;
         }
@@ -583,6 +590,7 @@
         closeComposer({ preserveDraft: false });
         render();
         openReader(entry);
+        window.RODOPremiumFeatures?.onJournalSaved?.(entry, { isNew: true });
         toast('اتحفظت يومياتك.', 'success');
     };
 
@@ -644,6 +652,8 @@
         refs.dateFilter.value = 'all';
         refs.dateFrom.value = '';
         refs.dateTo.value = '';
+        const folderFilter = document.getElementById('journal-folder-filter');
+        if (folderFilter) folderFilter.value = 'all';
         refs.customRange.classList.add('hidden');
         render();
     };
